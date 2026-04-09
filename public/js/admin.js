@@ -16,6 +16,7 @@ function showSection(name, el) {
 function showToast(msg = 'Сохранено ✓') {
   const t = document.getElementById('toast')
   t.textContent = msg
+  t.style.background = msg.startsWith('Ошибка') ? '#ef4444' : '#22c55e'
   t.style.display = 'block'
   setTimeout(() => { t.style.display = 'none' }, 2500)
 }
@@ -34,8 +35,10 @@ async function api(method, path, body) {
 let materials = []
 
 async function loadMaterials() {
-  materials = await api('GET', '/api/materials')
-  renderMaterials()
+  try {
+    materials = await api('GET', '/api/materials')
+    renderMaterials()
+  } catch (e) { showToast('Ошибка: ' + e.message) }
 }
 
 function renderMaterials() {
@@ -51,33 +54,41 @@ async function addMaterial() {
   const name = document.getElementById('mat-name').value.trim()
   const price = +document.getElementById('mat-price').value
   if (!name || !price) return alert('Заполните название и цену')
-  const m = await api('POST', '/api/materials', { name, price_per_sqm: price })
-  materials.push(m)
-  document.getElementById('mat-name').value = ''
-  document.getElementById('mat-price').value = ''
-  renderMaterials()
+  try {
+    const m = await api('POST', '/api/materials', { name, price_per_sqm: price })
+    materials.push(m)
+    document.getElementById('mat-name').value = ''
+    document.getElementById('mat-price').value = ''
+    renderMaterials()
+  } catch (e) { showToast('Ошибка: ' + e.message) }
 }
 
 async function deleteMaterial(id, i) {
   if (!confirm('Удалить материал?')) return
-  await api('DELETE', '/api/materials/' + id)
-  materials.splice(i, 1)
-  renderMaterials()
+  try {
+    await api('DELETE', '/api/materials/' + id)
+    materials.splice(i, 1)
+    renderMaterials()
+  } catch (e) { showToast('Ошибка: ' + e.message) }
 }
 
 async function saveMaterials() {
-  for (const m of materials) {
-    await api('PUT', '/api/materials/' + m.id, { name: m.name, price_per_sqm: m.price_per_sqm })
-  }
-  showToast()
+  try {
+    for (const m of materials) {
+      await api('PUT', '/api/materials/' + m.id, { name: m.name, price_per_sqm: m.price_per_sqm })
+    }
+    showToast()
+  } catch (e) { showToast('Ошибка: ' + e.message) }
 }
 
 // ── Sheet Tiers ───────────────────────────────────────────────────────────
 let tiers = []
 
 async function loadTiers() {
-  tiers = await api('GET', '/api/sheet-tiers')
-  renderTiers()
+  try {
+    tiers = await api('GET', '/api/sheet-tiers')
+    renderTiers()
+  } catch (e) { showToast('Ошибка: ' + e.message) }
 }
 
 function renderTiers() {
@@ -93,34 +104,42 @@ async function addTier() {
   const min_sqm = +document.getElementById('tier-min').value
   const price = +document.getElementById('tier-price').value
   if (isNaN(min_sqm) || !price) return alert('Заполните ступень и цену')
-  const t = await api('POST', '/api/sheet-tiers', { min_sqm, price_per_sqm: price })
-  tiers.push(t)
-  tiers.sort((a, b) => a.min_sqm - b.min_sqm)
-  document.getElementById('tier-min').value = ''
-  document.getElementById('tier-price').value = ''
-  renderTiers()
+  try {
+    const t = await api('POST', '/api/sheet-tiers', { min_sqm, price_per_sqm: price })
+    tiers.push(t)
+    tiers.sort((a, b) => a.min_sqm - b.min_sqm)
+    document.getElementById('tier-min').value = ''
+    document.getElementById('tier-price').value = ''
+    renderTiers()
+  } catch (e) { showToast('Ошибка: ' + e.message) }
 }
 
 async function deleteTier(id, i) {
   if (!confirm('Удалить ступень?')) return
-  await api('DELETE', '/api/sheet-tiers/' + id)
-  tiers.splice(i, 1)
-  renderTiers()
+  try {
+    await api('DELETE', '/api/sheet-tiers/' + id)
+    tiers.splice(i, 1)
+    renderTiers()
+  } catch (e) { showToast('Ошибка: ' + e.message) }
 }
 
 async function saveTiers() {
-  for (const t of tiers) {
-    await api('PUT', '/api/sheet-tiers/' + t.id, { min_sqm: t.min_sqm, price_per_sqm: t.price_per_sqm })
-  }
-  showToast()
+  try {
+    for (const t of tiers) {
+      await api('PUT', '/api/sheet-tiers/' + t.id, { min_sqm: t.min_sqm, price_per_sqm: t.price_per_sqm })
+    }
+    showToast()
+  } catch (e) { showToast('Ошибка: ' + e.message) }
 }
 
 // ── Souvenir Prices ───────────────────────────────────────────────────────
 let souvenirPrices = []
 
 async function loadSouvenir() {
-  souvenirPrices = await api('GET', '/api/souvenir-prices')
-  renderSouvenir()
+  try {
+    souvenirPrices = await api('GET', '/api/souvenir-prices')
+    renderSouvenir()
+  } catch (e) { showToast('Ошибка: ' + e.message) }
 }
 
 function renderSouvenir() {
@@ -146,51 +165,61 @@ async function addSouvenirPrice() {
     qty_from_1000: +document.getElementById('souv-1000').value
   }
   if (!vals.product_type) return alert('Введите тип товара')
-  const p = await api('POST', '/api/souvenir-prices', vals)
-  souvenirPrices.push(p)
-  ;['souv-type','souv-29','souv-30','souv-100','souv-500','souv-1000'].forEach(id => document.getElementById(id).value = '')
-  renderSouvenir()
+  try {
+    const p = await api('POST', '/api/souvenir-prices', vals)
+    souvenirPrices.push(p)
+    ;['souv-type','souv-29','souv-30','souv-100','souv-500','souv-1000'].forEach(id => document.getElementById(id).value = '')
+    renderSouvenir()
+  } catch (e) { showToast('Ошибка: ' + e.message) }
 }
 
 async function deleteSouvenir(id, i) {
   if (!confirm('Удалить тип товара?')) return
-  await api('DELETE', '/api/souvenir-prices/' + id)
-  souvenirPrices.splice(i, 1)
-  renderSouvenir()
+  try {
+    await api('DELETE', '/api/souvenir-prices/' + id)
+    souvenirPrices.splice(i, 1)
+    renderSouvenir()
+  } catch (e) { showToast('Ошибка: ' + e.message) }
 }
 
 async function saveSouvenir() {
-  for (const p of souvenirPrices) {
-    await api('PUT', '/api/souvenir-prices/' + p.id, p)
-  }
-  showToast()
+  try {
+    for (const p of souvenirPrices) {
+      await api('PUT', '/api/souvenir-prices/' + p.id, p)
+    }
+    showToast()
+  } catch (e) { showToast('Ошибка: ' + e.message) }
 }
 
 // ── Catalog ───────────────────────────────────────────────────────────────
 async function loadCatalog() {
-  const q = document.getElementById('catalog-search')?.value || ''
-  const [items, prices] = await Promise.all([
-    api('GET', '/api/catalog' + (q ? `?q=${encodeURIComponent(q)}` : '')),
-    api('GET', '/api/souvenir-prices')
-  ])
-  const priceOptions = prices.map(p => `<option value="${p.id}">${esc(p.product_type)}</option>`).join('')
-  document.getElementById('catalog-body').innerHTML = items.map(item => `
-    <tr>
-      <td style="font-size:11px;color:#64748b;">${esc(item.article)}</td>
-      <td>${esc(item.name)}</td>
-      <td style="font-size:11px;color:#94a3b8;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(item.colors || '')}</td>
-      <td>
-        <select style="font-size:12px;" onchange="linkCatalogItem(${item.id}, this.value)">
-          <option value="">— не привязан —</option>
-          ${priceOptions.replace(`value="${item.souvenir_price_id}"`, `value="${item.souvenir_price_id}" selected`)}
-        </select>
-      </td>
-    </tr>`).join('')
+  try {
+    const q = document.getElementById('catalog-search')?.value || ''
+    const [items, prices] = await Promise.all([
+      api('GET', '/api/catalog' + (q ? `?q=${encodeURIComponent(q)}` : '')),
+      api('GET', '/api/souvenir-prices')
+    ])
+    const priceOptions = prices.map(p => `<option value="${p.id}">${esc(p.product_type)}</option>`).join('')
+    document.getElementById('catalog-body').innerHTML = items.map(item => `
+      <tr>
+        <td style="font-size:11px;color:#64748b;">${esc(item.article)}</td>
+        <td>${esc(item.name)}</td>
+        <td style="font-size:11px;color:#94a3b8;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(item.colors || '')}</td>
+        <td>
+          <select style="font-size:12px;" onchange="linkCatalogItem(${item.id}, this.value)">
+            <option value="">— не привязан —</option>
+            ${priceOptions.replace(`value="${Number(item.souvenir_price_id) || ''}"`, `value="${Number(item.souvenir_price_id) || ''}" selected`)}
+          </select>
+        </td>
+      </tr>`).join('')
+  } catch (e) { showToast('Ошибка: ' + e.message) }
 }
 
 async function linkCatalogItem(id, priceId) {
-  await api('PUT', '/api/catalog/' + id + '/price-type', { souvenir_price_id: priceId || null })
-  showToast('Привязка сохранена ✓')
+  try {
+    await api('PUT', '/api/catalog/' + id + '/price-type', { souvenir_price_id: priceId || null })
+    showToast('Привязка сохранена ✓')
+  } catch (e) { showToast('Ошибка: ' + e.message) }
 }
 
 async function importCatalog(input) {
@@ -198,31 +227,38 @@ async function importCatalog(input) {
   if (!file) return
   const fd = new FormData()
   fd.append('file', file)
-  const res = await fetch('/api/catalog/import', { method: 'POST', body: fd })
-  const data = await res.json()
-  document.getElementById('import-info').textContent = `Импортировано: ${data.imported} товаров · ${new Date().toLocaleDateString('ru-RU')}`
-  loadCatalog()
+  try {
+    const res = await fetch('/api/catalog/import', { method: 'POST', body: fd })
+    if (!res.ok) { showToast('Ошибка импорта: ' + (await res.text())); return }
+    const data = await res.json()
+    document.getElementById('import-info').textContent = `Импортировано: ${data.imported} товаров · ${new Date().toLocaleDateString('ru-RU')}`
+    loadCatalog()
+  } catch (e) { showToast('Ошибка импорта: ' + e.message) }
 }
 
 // ── Quotes ────────────────────────────────────────────────────────────────
 async function loadQuotes() {
-  const quotes = await api('GET', '/api/quotes')
-  document.getElementById('quotes-body').innerHTML = quotes.map(q => {
-    const res = JSON.parse(q.result)
-    return `<tr>
-      <td style="font-size:12px;color:#64748b;">${q.created_at}</td>
-      <td>${q.type === 'sheet' ? '📄 Листовая' : '🎁 Сувенирная'}</td>
-      <td style="font-weight:600;">${res.total?.toLocaleString('ru-RU')} ₽</td>
-      <td style="font-size:12px;max-width:200px;white-space:pre-wrap;">${esc(q.kp_text)}</td>
-      <td><button class="btn-danger" onclick="deleteQuote(${q.id})">✕</button></td>
-    </tr>`
-  }).join('')
+  try {
+    const quotes = await api('GET', '/api/quotes')
+    document.getElementById('quotes-body').innerHTML = quotes.map(q => {
+      const res = JSON.parse(q.result)
+      return `<tr>
+        <td style="font-size:12px;color:#64748b;">${q.created_at}</td>
+        <td>${q.type === 'sheet' ? '📄 Листовая' : '🎁 Сувенирная'}</td>
+        <td style="font-weight:600;">${res.total?.toLocaleString('ru-RU')} ₽</td>
+        <td style="font-size:12px;max-width:200px;white-space:pre-wrap;">${esc(q.kp_text)}</td>
+        <td><button class="btn-danger" onclick="deleteQuote(${q.id})">✕</button></td>
+      </tr>`
+    }).join('')
+  } catch (e) { showToast('Ошибка: ' + e.message) }
 }
 
 async function deleteQuote(id) {
   if (!confirm('Удалить КП?')) return
-  await api('DELETE', '/api/quotes/' + id)
-  loadQuotes()
+  try {
+    await api('DELETE', '/api/quotes/' + id)
+    loadQuotes()
+  } catch (e) { showToast('Ошибка: ' + e.message) }
 }
 
 // ── Utility ───────────────────────────────────────────────────────────────
