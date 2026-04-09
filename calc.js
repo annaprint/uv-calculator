@@ -1,6 +1,6 @@
 // calc.js
 
-function calcSheet({ widthMm, heightMm, qty, materialId, clientMaterial, uvVarnish, reliefLayers, urgent }, materials, tiers) {
+function calcSheet({ widthMm, heightMm, qty, materialId, clientMaterial, uvVarnish, reliefLayers = 0, urgent }, materials, tiers) {
   const totalSqm = (widthMm / 1000) * (heightMm / 1000) * qty
 
   const applicableTiers = tiers.filter(t => t.min_sqm <= totalSqm)
@@ -33,7 +33,7 @@ function calcSheet({ widthMm, heightMm, qty, materialId, clientMaterial, uvVarni
   }
 }
 
-function calcSouvenir({ productTypeId, qty, uvVarnish, reliefLayers, urgent }, prices) {
+function calcSouvenir({ productTypeId, qty, uvVarnish, reliefLayers = 0, urgent }, prices) {
   const price = prices.find(p => p.id === productTypeId)
   if (!price) throw new Error('Product type not found')
 
