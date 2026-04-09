@@ -31,7 +31,9 @@ app.post('/api/materials', (req, res) => {
 
 app.put('/api/materials/:id', (req, res) => {
   const { name, price_per_sqm } = req.body
-  db.prepare('UPDATE sheet_materials SET name=?, price_per_sqm=? WHERE id=?').run(name, price_per_sqm, req.params.id)
+  if (!name || price_per_sqm == null) return res.status(400).json({ error: 'name and price_per_sqm required' })
+  const info = db.prepare('UPDATE sheet_materials SET name=?, price_per_sqm=? WHERE id=?').run(name, price_per_sqm, req.params.id)
+  if (info.changes === 0) return res.status(404).json({ error: 'Not found' })
   res.json(db.prepare('SELECT * FROM sheet_materials WHERE id=?').get(req.params.id))
 })
 
@@ -70,6 +72,8 @@ app.get('/api/souvenir-prices', (req, res) => {
 
 app.post('/api/souvenir-prices', (req, res) => {
   const { product_type, qty_up_to_29, qty_from_30, qty_from_100, qty_from_500, qty_from_1000 } = req.body
+  if (!product_type || qty_up_to_29 == null || qty_from_30 == null || qty_from_100 == null || qty_from_500 == null || qty_from_1000 == null)
+    return res.status(400).json({ error: 'product_type and all qty fields required' })
   const info = db.prepare(
     'INSERT INTO souvenir_prices (product_type,qty_up_to_29,qty_from_30,qty_from_100,qty_from_500,qty_from_1000) VALUES (?,?,?,?,?,?)'
   ).run(product_type, qty_up_to_29, qty_from_30, qty_from_100, qty_from_500, qty_from_1000)
@@ -125,8 +129,12 @@ app.post('/api/catalog/import', upload.single('file'), (req, res) => {
     }
     return count
   })
-  const count = importMany(rows)
-  res.json({ imported: count })
+  try {
+    const count = importMany(rows)
+    res.json({ imported: count })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
 })
 
 app.put('/api/catalog/:id/price-type', (req, res) => {
@@ -137,10 +145,6 @@ app.put('/api/catalog/:id/price-type', (req, res) => {
 
 // ── Calculations ──────────────────────────────────────────────────────────
 app.post('/api/calc/sheet', (req, res) => {
-  const { widthMm, heightMm, qty } = req.body
-  if (!widthMm || !heightMm || !qty || widthMm < 200 || heightMm < 200 || qty < 1) {
-    return res.status(400).json({ error: 'widthMm and heightMm must be >= 200, qty must be >= 1' })
-  }
   try {
     const materials = db.prepare('SELECT * FROM sheet_materials WHERE active=1').all()
     const tiers = db.prepare('SELECT * FROM sheet_tiers ORDER BY min_sqm').all()

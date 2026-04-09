@@ -128,12 +128,14 @@ describe('POST /api/calc/sheet', () => {
     expect(res.body.pricePerUnit).toBeGreaterThan(0)
   })
 
-  test('returns 400 for invalid params', async () => {
+  test('returns 400 when material not found', async () => {
     const res = await request(app).post('/api/calc/sheet').send({
-      widthMm: 100, heightMm: 100, qty: 1, clientMaterial: true,
+      widthMm: 600, heightMm: 900, qty: 10,
+      materialId: 9999, clientMaterial: false,
       uvVarnish: false, reliefLayers: 0, urgent: false
     })
     expect(res.status).toBe(400)
+    expect(res.body.error).toMatch(/Material not found/)
   })
 })
 
