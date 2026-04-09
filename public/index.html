@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Калькулятор УФ-печати — Сити Принт</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f5f9; color: #1e293b; min-height: 100vh; }
+    header { background: #1e293b; color: white; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; }
+    header h1 { font-size: 16px; font-weight: 600; }
+    header a { color: #94a3b8; font-size: 13px; text-decoration: none; }
+    header a:hover { color: #f8fafc; }
+    .container { max-width: 720px; margin: 32px auto; padding: 0 16px; }
+    .tabs { display: flex; background: white; border-radius: 10px 10px 0 0; border: 1px solid #e2e8f0; border-bottom: none; overflow: hidden; }
+    .tab { flex: 1; padding: 13px; text-align: center; font-size: 14px; font-weight: 600; cursor: pointer; color: #64748b; border-bottom: 3px solid transparent; transition: all .15s; }
+    .tab.active { color: #3b82f6; border-bottom-color: #3b82f6; background: #f8fbff; }
+    .card { background: white; border-radius: 0 0 10px 10px; border: 1px solid #e2e8f0; padding: 24px; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .field { margin-bottom: 16px; }
+    label { display: block; font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 6px; }
+    input[type=number], select { width: 100%; padding: 9px 12px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 14px; color: #1e293b; }
+    input[type=number]:focus, select:focus { outline: none; border-color: #3b82f6; }
+    .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+    .info-pill { background: #f1f5f9; border-radius: 6px; padding: 8px 12px; font-size: 12px; color: #64748b; margin-bottom: 16px; display: flex; justify-content: space-between; }
+    .info-pill strong { color: #1e293b; }
+    .options label { text-transform: none; font-size: 13px; font-weight: 400; display: flex; align-items: center; gap: 8px; margin-bottom: 8px; cursor: pointer; }
+    .options input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; }
+    .badge { font-size: 11px; color: #f59e0b; font-weight: 600; margin-left: 4px; }
+    .urgency { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .urg-btn { padding: 10px; border: 2px solid #e2e8f0; border-radius: 7px; text-align: center; cursor: pointer; font-size: 13px; color: #64748b; }
+    .urg-btn.active { border-color: #3b82f6; background: #eff6ff; color: #3b82f6; font-weight: 600; }
+    .urg-btn small { display: block; font-size: 11px; color: #94a3b8; font-weight: 400; }
+    .urg-btn.active.urgent small { color: #f59e0b; }
+    .client-material-toggle { background: #fefce8; border: 1px solid #fde047; border-radius: 7px; padding: 12px; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; cursor: pointer; }
+    .client-material-toggle input { width: 17px; height: 17px; }
+    .client-material-toggle span { font-size: 13px; font-weight: 600; color: #854d0e; }
+    .calc-btn { width: 100%; padding: 12px; background: #3b82f6; color: white; border: none; border-radius: 7px; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 8px; }
+    .calc-btn:hover { background: #2563eb; }
+    .result-box { display: none; margin-top: 20px; background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 18px; }
+    .result-box.show { display: block; }
+    .result-title { font-size: 11px; font-weight: 700; color: #15803d; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 12px; }
+    .result-row { display: flex; justify-content: space-between; font-size: 13px; color: #475569; margin-bottom: 5px; }
+    .result-total { display: flex; justify-content: space-between; font-size: 17px; font-weight: 700; color: #166534; margin-top: 10px; padding-top: 10px; border-top: 1px solid #bbf7d0; }
+    .result-per-unit { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+    .kp-btn { width: 100%; padding: 10px; background: #1e293b; color: white; border: none; border-radius: 7px; font-size: 13px; font-weight: 500; cursor: pointer; margin-top: 14px; }
+    .kp-btn:hover { background: #334155; }
+    .error-box { display: none; margin-top: 12px; background: #fef2f2; border: 1px solid #fca5a5; border-radius: 7px; padding: 12px; font-size: 13px; color: #dc2626; }
+    .error-box.show { display: block; }
+    .search-input { margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>⚡ Калькулятор УФ-печати</h1>
+  <a href="/admin.html">⚙️ Администратор</a>
+</header>
+
+<div class="container">
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('sheet', this)">📄 Листовая продукция</div>
+    <div class="tab" onclick="switchTab('souvenir', this)">🎁 Сувенирная продукция</div>
+  </div>
+
+  <div class="card">
+
+    <!-- ── SHEET TAB ── -->
+    <div id="tab-sheet" class="tab-content active">
+      <label class="client-material-toggle" for="client-material">
+        <input type="checkbox" id="client-material" onchange="updateClientMaterial()">
+        <span>Материал заказчика — только надпечатка</span>
+      </label>
+
+      <div class="field" id="field-material">
+        <label>Материал</label>
+        <select id="sheet-material">
+          <option value="">Загрузка...</option>
+        </select>
+      </div>
+
+      <div class="row3">
+        <div class="field">
+          <label>Ширина, мм</label>
+          <input type="number" id="sheet-width" placeholder="600" min="1" oninput="updateSheetInfo()">
+        </div>
+        <div class="field">
+          <label>Высота, мм</label>
+          <input type="number" id="sheet-height" placeholder="900" min="1" oninput="updateSheetInfo()">
+        </div>
+        <div class="field">
+          <label>Тираж, шт.</label>
+          <input type="number" id="sheet-qty" placeholder="50" min="1" oninput="updateSheetInfo()">
+        </div>
+      </div>
+
+      <div class="info-pill" id="sheet-info" style="display:none;">
+        <span>Общая площадь: <strong id="sheet-sqm">—</strong></span>
+        <span>Ступень: <strong id="sheet-tier">—</strong></span>
+      </div>
+
+      <div class="field options">
+        <label style="text-transform:uppercase;font-size:12px;font-weight:600;color:#64748b;">Опции печати</label>
+        <label><input type="checkbox" id="sheet-varnish"> УФ-лак <span class="badge">+30%</span></label>
+        <label>
+          <input type="checkbox" id="sheet-relief"> Рельефный белый
+          <span class="badge">+30% за слой</span>
+        </label>
+        <div id="sheet-relief-layers" style="display:none;margin-left:26px;margin-top:4px;">
+          <label style="text-transform:none;font-size:13px;font-weight:400;display:flex;align-items:center;gap:8px;">
+            Количество доп. слоёв:
+            <input type="number" id="sheet-layers" value="1" min="1" max="5" style="width:60px;">
+          </label>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Срочность</label>
+        <div class="urgency">
+          <div class="urg-btn active" id="sheet-standard" onclick="setUrgency('sheet','standard')">
+            Стандарт <small>3–5 рабочих дней</small>
+          </div>
+          <div class="urg-btn urgent" id="sheet-urgent" onclick="setUrgency('sheet','urgent')">
+            Срочно <small>1–2 дня · +30%</small>
+          </div>
+        </div>
+      </div>
+
+      <button class="calc-btn" onclick="calcSheetOrder()">Рассчитать →</button>
+
+      <div class="error-box" id="sheet-error"></div>
+
+      <div class="result-box" id="sheet-result">
+        <div class="result-title">Расчёт стоимости</div>
+        <div id="sheet-breakdown"></div>
+        <div class="result-total"><span>Итого</span><span id="sheet-total"></span></div>
+        <div class="result-per-unit" id="sheet-per-unit"></div>
+        <button class="kp-btn" onclick="generateKP('sheet')">📋 Сформировать КП</button>
+      </div>
+    </div>
+
+    <!-- ── SOUVENIR TAB ── -->
+    <div id="tab-souvenir" class="tab-content">
+      <div class="field">
+        <label>Поиск товара</label>
+        <input type="text" class="search-input" id="souv-search" placeholder="Ручка, ежедневник, power bank..." oninput="filterCatalog()">
+      </div>
+
+      <div class="field">
+        <label>Товар из каталога</label>
+        <select id="souv-product" onchange="updateSouvInfo()">
+          <option value="">Выберите товар...</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Количество, шт.</label>
+        <input type="number" id="souv-qty" placeholder="100" min="1" oninput="updateSouvInfo()">
+      </div>
+
+      <div class="info-pill" id="souv-info" style="display:none;">
+        <span>Тарифная ступень: <strong id="souv-tier">—</strong></span>
+      </div>
+
+      <div class="field options">
+        <label style="text-transform:uppercase;font-size:12px;font-weight:600;color:#64748b;">Опции печати</label>
+        <label><input type="checkbox" id="souv-varnish"> УФ-лак <span class="badge">+30%</span></label>
+        <label>
+          <input type="checkbox" id="souv-relief"> Рельефный белый
+          <span class="badge">+30% за слой</span>
+        </label>
+        <div id="souv-relief-layers" style="display:none;margin-left:26px;margin-top:4px;">
+          <label style="text-transform:none;font-size:13px;font-weight:400;display:flex;align-items:center;gap:8px;">
+            Количество доп. слоёв:
+            <input type="number" id="souv-layers" value="1" min="1" max="5" style="width:60px;">
+          </label>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Срочность</label>
+        <div class="urgency">
+          <div class="urg-btn active" id="souv-standard" onclick="setUrgency('souv','standard')">
+            Стандарт <small>3–5 рабочих дней</small>
+          </div>
+          <div class="urg-btn urgent" id="souv-urgent" onclick="setUrgency('souv','urgent')">
+            Срочно <small>1–2 дня · +30%</small>
+          </div>
+        </div>
+      </div>
+
+      <button class="calc-btn" onclick="calcSouvenirOrder()">Рассчитать →</button>
+
+      <div class="error-box" id="souv-error"></div>
+
+      <div class="result-box" id="souv-result">
+        <div class="result-title">Расчёт стоимости</div>
+        <div id="souv-breakdown"></div>
+        <div class="result-total"><span>Итого</span><span id="souv-total"></span></div>
+        <div class="result-per-unit" id="souv-per-unit"></div>
+        <button class="kp-btn" onclick="generateKP('souvenir')">📋 Сформировать КП</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="/js/calc-ui.js"></script>
+</body>
+</html>
