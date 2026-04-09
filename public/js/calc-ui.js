@@ -135,11 +135,11 @@ async function calcSheetOrder() {
 
 function showSheetResult(r, p) {
   const matName = p.clientMaterial ? 'Материал заказчика' : (sheetMaterials.find(m => m.id === p.materialId)?.name || '')
-  let rows = `<div class="result-row"><span>Надпечатка (${r.totalSqm} м², ступень от ${r.tierApplied} м²)</span><span>${fmt(r.basePrintCost)}</span></div>`
+  let rows = `<div class="result-row"><span>Надпечатка (${esc(String(r.totalSqm))} м², ступень от ${esc(String(r.tierApplied))} м²)</span><span>${fmt(r.basePrintCost)}</span></div>`
   if (!p.clientMaterial) rows += `<div class="result-row"><span>Материал: ${esc(matName)}</span><span>${fmt(r.materialCost)}</span></div>`
   if (p.uvVarnish) rows += `<div class="result-row"><span>УФ-лак (+30%)</span><span>${fmt(r.basePrintCost * 0.30)}</span></div>`
   if (p.reliefLayers > 0) rows += `<div class="result-row"><span>Рельефный белый (${p.reliefLayers} сл. × +30%)</span><span>${fmt(r.basePrintCost * 0.30 * p.reliefLayers)}</span></div>`
-  if (p.urgent) rows += `<div class="result-row"><span>Срочность (+30%)</span><span>включено</span></div>`
+  if (p.urgent) rows += `<div class="result-row"><span>Срочность (+30%)</span><span>${fmt(r.total - r.printCost - r.materialCost)}</span></div>`
 
   document.getElementById('sheet-breakdown').innerHTML = rows
   document.getElementById('sheet-total').textContent = fmt(r.total)
@@ -171,10 +171,13 @@ async function calcSouvenirOrder() {
 
 function showSouvResult(r, p) {
   const tierLabel = { up_to_29: 'до 29 шт.', from_30: 'от 30 шт.', from_100: 'от 100 шт.', from_500: 'от 500 шт.', from_1000: 'от 1000 шт.' }
-  let rows = `<div class="result-row"><span>Печать (${tierLabel[r.tierApplied] || r.tierApplied})</span><span>${fmt(r.base)}</span></div>`
+  let rows = `<div class="result-row"><span>Печать (${esc(tierLabel[r.tierApplied] || String(r.tierApplied))})</span><span>${fmt(r.base)}</span></div>`
   if (p.uvVarnish) rows += `<div class="result-row"><span>УФ-лак (+30%)</span><span>${fmt(r.base * 0.30)}</span></div>`
   if (p.reliefLayers > 0) rows += `<div class="result-row"><span>Рельефный белый (${p.reliefLayers} сл. × +30%)</span><span>${fmt(r.base * 0.30 * p.reliefLayers)}</span></div>`
-  if (p.urgent) rows += `<div class="result-row"><span>Срочность (+30%)</span><span>включено</span></div>`
+  if (p.urgent) {
+    const preUrgency = r.base + (p.uvVarnish ? r.base * 0.30 : 0) + (p.reliefLayers > 0 ? r.base * 0.30 * p.reliefLayers : 0)
+    rows += `<div class="result-row"><span>Срочность (+30%)</span><span>${fmt(r.total - preUrgency)}</span></div>`
+  }
 
   document.getElementById('souv-breakdown').innerHTML = rows
   document.getElementById('souv-total').textContent = fmt(r.total)
@@ -228,4 +231,6 @@ function hideResult(prefix) {
   document.getElementById(prefix + '-error').classList.remove('show')
 }
 
-init()
+init().catch(e => {
+  document.querySelector('.card').innerHTML = `<p style="color:#dc2626;padding:20px;">Ошибка загрузки данных: ${e.message}. Проверьте, что сервер запущен.</p>`
+})
