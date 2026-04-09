@@ -1,3 +1,4 @@
 node_modules/
 data/uv.db
 .superpowers/
+.DS_Store
