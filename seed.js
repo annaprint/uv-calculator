@@ -47,7 +47,15 @@ function seedPrices(db) {
 
 async function main() {
   const db = createDb()
-  seedPrices(db)
+  const counts = db.prepare(
+    "SELECT (SELECT COUNT(*) FROM sheet_materials) + (SELECT COUNT(*) FROM sheet_tiers) + (SELECT COUNT(*) FROM souvenir_prices) AS total"
+  ).get().total
+  if (counts === 0) {
+    seedPrices(db)
+    console.log('Prices seeded.')
+  } else {
+    console.log('Prices already populated, skipping seedPrices.')
+  }
   await ensureFirstAdmin(db, {
     email: process.env.ADMIN_EMAIL,
     password: process.env.ADMIN_PASS,

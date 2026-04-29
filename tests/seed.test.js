@@ -1,6 +1,7 @@
 // tests/seed.test.js
 const { createDb } = require('../db')
 const { ensureFirstAdmin } = require('../seed')
+const { verifyPassword } = require('../auth')
 
 describe('ensureFirstAdmin', () => {
   test('creates admin user from email and password', async () => {
@@ -11,6 +12,7 @@ describe('ensureFirstAdmin', () => {
     expect(u.is_admin).toBe(1)
     expect(u.is_active).toBe(1)
     expect(u.password_hash).not.toBe('p') // должен быть bcrypt-хеш
+    expect(await verifyPassword('p', u.password_hash)).toBe(true)
   })
 
   test('idempotent: second call does not create duplicate', async () => {
