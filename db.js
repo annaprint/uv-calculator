@@ -49,8 +49,29 @@ const migrations = [
         );
       `)
     }
+  },
+  {
+    version: 2,
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE users (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          email TEXT NOT NULL UNIQUE,
+          password_hash TEXT NOT NULL,
+          full_name TEXT NOT NULL,
+          is_admin INTEGER NOT NULL DEFAULT 0,
+          is_active INTEGER NOT NULL DEFAULT 1,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE TABLE sessions (
+          sid TEXT PRIMARY KEY,
+          expired INTEGER NOT NULL,
+          sess TEXT NOT NULL
+        );
+        ALTER TABLE quotes ADD COLUMN user_id INTEGER REFERENCES users(id);
+      `)
+    }
   }
-  // последующие миграции добавляются в Task 2 и далее
 ]
 
 for (let i = 1; i < migrations.length; i++) {
