@@ -53,6 +53,14 @@ const migrations = [
   // последующие миграции добавляются в Task 2 и далее
 ]
 
+for (let i = 1; i < migrations.length; i++) {
+  if (migrations[i].version <= migrations[i - 1].version) {
+    throw new Error(
+      `Migrations must be strictly ascending by version; got ${migrations[i - 1].version} then ${migrations[i].version}`
+    )
+  }
+}
+
 function applyMigrations(db) {
   const current = db.pragma('user_version', { simple: true })
   const pending = migrations.filter(m => m.version > current)
