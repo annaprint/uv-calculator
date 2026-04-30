@@ -6,6 +6,7 @@ describe('route gating', () => {
   let app, db, agent
   beforeEach(async () => {
     process.env.NODE_ENV = 'test'
+    process.env.DISABLE_RATE_LIMIT = 'true'
     db = makeTestDb()
     jest.resetModules()
     jest.doMock('../db', () => ({ createDb: () => db }))

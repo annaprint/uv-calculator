@@ -26,6 +26,7 @@ describe('POST /api/login', () => {
   let app, db, agent
   beforeEach(async () => {
     process.env.NODE_ENV = 'test'
+    process.env.DISABLE_RATE_LIMIT = 'true'
     db = makeTestDb()
     const { hashPassword } = require('../auth')
     db.prepare('INSERT INTO users (email,password_hash,full_name,is_admin,is_active) VALUES (?,?,?,1,1)')
@@ -88,5 +89,26 @@ describe('POST /api/login', () => {
     await agent.post('/api/login').send({ email: 'a@b.c', password: 'p' })
     const res = await agent.post('/api/logout')
     expect(res.headers['set-cookie']?.some(c => /connect\.sid=;/.test(c))).toBe(true)
+  })
+})
+
+describe('rate-limit on /api/login', () => {
+  let app, db, agent
+  beforeEach(async () => {
+    process.env.NODE_ENV = 'test'
+    delete process.env.DISABLE_RATE_LIMIT
+    db = makeTestDb()
+    jest.resetModules()
+    jest.doMock('../db', () => ({ createDb: () => db }))
+    app = require('../server').app
+    agent = request.agent(app)
+  })
+
+  test('returns 429 after 5 failed attempts within a minute', async () => {
+    for (let i = 0; i < 5; i++) {
+      await agent.post('/api/login').send({ email: 'x@b.c', password: 'wrong' })
+    }
+    const res = await agent.post('/api/login').send({ email: 'x@b.c', password: 'wrong' })
+    expect(res.status).toBe(429)
   })
 })

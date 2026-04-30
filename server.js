@@ -3,6 +3,7 @@ const express = require('express')
 const path = require('path')
 const multer = require('multer')
 const XLSX = require('xlsx')
+const rateLimit = require('express-rate-limit')
 const { createDb } = require('./db')
 const { calcSheet, calcSouvenir } = require('./calc')
 const { buildSessionMiddleware, loginUser, loadUser, requireAuth, requireAdmin } = require('./auth')
@@ -18,6 +19,14 @@ app.use(buildSessionMiddleware({
   isTest: process.env.NODE_ENV === 'test'
 }))
 app.use(loadUser(db))
+
+const loginLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => process.env.DISABLE_RATE_LIMIT === 'true'
+})
 
 // ── HTML routes (gated) ───────────────────────────────────────────────────
 app.get('/', (req, res) => {
@@ -42,7 +51,7 @@ app.use(express.static(path.join(__dirname, 'public'), { index: false }))
 app.get('/api/health', (req, res) => res.json({ ok: true }))
 
 // ── Auth ──────────────────────────────────────────────────────────────────
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', loginLimiter, async (req, res) => {
   const { email, password } = req.body || {}
   if (!email || !password) return res.status(400).json({ error: 'email and password required' })
   const user = await loginUser(db, email, password)
