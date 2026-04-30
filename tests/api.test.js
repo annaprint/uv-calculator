@@ -15,6 +15,7 @@ describe('database schema', () => {
     expect(tables).toContain('catalog_items')
     expect(tables).toContain('quotes')
     expect(tables).toContain('users')
+    expect(tables).toContain('sessions')
   })
 })
 
