@@ -11,6 +11,10 @@
     header h1 { font-size: 16px; font-weight: 600; }
     header a { color: #94a3b8; font-size: 13px; text-decoration: none; }
     header a:hover { color: #f8fafc; }
+    .header-right { display:flex; align-items:center; gap:12px; }
+    .header-right [data-user-name] { color:#cbd5e1; font-size:13px; }
+    .header-right button { background:transparent; color:#94a3b8; border:1px solid #475569; padding:5px 10px; font-size:12px; border-radius:4px; cursor:pointer; }
+    .header-right button:hover { color:#f8fafc; border-color:#94a3b8; }
     .container { max-width: 720px; margin: 32px auto; padding: 0 16px; }
     .tabs { display: flex; background: white; border-radius: 10px 10px 0 0; border: 1px solid #e2e8f0; border-bottom: none; overflow: hidden; }
     .tab { flex: 1; padding: 13px; text-align: center; font-size: 14px; font-weight: 600; cursor: pointer; color: #64748b; border-bottom: 3px solid transparent; transition: all .15s; }
@@ -55,7 +59,12 @@
 
 <header>
   <h1>⚡ Калькулятор УФ-печати</h1>
-  <a href="/admin.html">⚙️ Администратор</a>
+  <div class="header-right">
+    <span data-user-name>—</span>
+    <button data-change-password>Сменить пароль</button>
+    <button data-logout>Выйти</button>
+    <a href="/admin.html">⚙️ Администратор</a>
+  </div>
 </header>
 
 <div class="container">
@@ -206,6 +215,7 @@
   </div>
 </div>
 
+<script src="/js/header.js"></script>
 <script src="/js/calc-ui.js"></script>
 </body>
 </html>

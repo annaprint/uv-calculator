@@ -35,12 +35,21 @@
     .toast { position: fixed; bottom: 24px; right: 24px; background: #22c55e; color: white; padding: 10px 18px; border-radius: 8px; font-size: 13px; display: none; z-index: 100; }
     .import-box { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,.08); margin-bottom: 16px; }
     .import-info { font-size: 13px; color: #64748b; margin-top: 8px; }
+    .sidebar-user { padding: 12px 20px; border-bottom: 1px solid #334155; font-size: 12px; }
+    .sidebar-user [data-user-name] { color: #f8fafc; margin-bottom: 8px; font-weight: 600; }
+    .sidebar-user button { display: block; width: 100%; background: transparent; color: #cbd5e1; border: 1px solid #475569; padding: 5px 8px; margin-top: 4px; font-size: 11px; border-radius: 4px; cursor: pointer; }
+    .sidebar-user button:hover { color: #f8fafc; border-color: #94a3b8; }
   </style>
 </head>
 <body>
 
 <nav class="sidebar">
   <h1>⚙️ Администратор</h1>
+  <div class="sidebar-user">
+    <div data-user-name>—</div>
+    <button data-change-password>Сменить пароль</button>
+    <button data-logout>Выйти</button>
+  </div>
   <div class="nav-item active" onclick="showSection('materials', this)">📄 Листовые материалы</div>
   <div class="nav-item" onclick="showSection('tiers', this)">📐 Ступени листовой</div>
   <div class="nav-item" onclick="showSection('souvenir', this)">🎁 Сувенирная печать</div>
@@ -135,6 +144,7 @@
 
 <div class="toast" id="toast">Сохранено ✓</div>
 
+<script src="/js/header.js"></script>
 <script src="/js/admin.js"></script>
 </body>
 </html>
