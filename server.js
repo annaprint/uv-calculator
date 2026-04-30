@@ -88,6 +88,52 @@ app.post('/api/users/me/change-password', requireAuth, async (req, res) => {
   res.json({ ok: true })
 })
 
+// ── Users (admin) ─────────────────────────────────────────────────────────
+app.get('/api/users', requireAdmin, (req, res) => {
+  res.json(db.prepare('SELECT id,email,full_name,is_admin,is_active,created_at FROM users ORDER BY full_name').all())
+})
+
+app.post('/api/users', requireAdmin, async (req, res) => {
+  const { email, password, full_name, is_admin = 0 } = req.body || {}
+  if (!email || !password || !full_name) return res.status(400).json({ error: 'email, password, full_name required' })
+  const dup = db.prepare('SELECT id FROM users WHERE email=?').get(email)
+  if (dup) return res.status(409).json({ error: 'Email already exists' })
+  const hash = await hashPassword(password)
+  const info = db.prepare(
+    'INSERT INTO users (email,password_hash,full_name,is_admin,is_active) VALUES (?,?,?,?,1)'
+  ).run(email, hash, full_name, is_admin ? 1 : 0)
+  res.status(201).json(db.prepare('SELECT id,email,full_name,is_admin,is_active FROM users WHERE id=?').get(info.lastInsertRowid))
+})
+
+app.put('/api/users/:id', requireAdmin, (req, res) => {
+  const { full_name, is_admin } = req.body || {}
+  db.prepare('UPDATE users SET full_name=COALESCE(?,full_name), is_admin=COALESCE(?,is_admin) WHERE id=?')
+    .run(full_name ?? null, is_admin == null ? null : (is_admin ? 1 : 0), req.params.id)
+  const u = db.prepare('SELECT id,email,full_name,is_admin,is_active FROM users WHERE id=?').get(req.params.id)
+  if (!u) return res.status(404).json({ error: 'Not found' })
+  res.json(u)
+})
+
+app.post('/api/users/:id/reset-password', requireAdmin, async (req, res) => {
+  const { new_password } = req.body || {}
+  if (!new_password) return res.status(400).json({ error: 'new_password required' })
+  const hash = await hashPassword(new_password)
+  const info = db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(hash, req.params.id)
+  if (info.changes === 0) return res.status(404).json({ error: 'Not found' })
+  res.json({ ok: true })
+})
+
+app.put('/api/users/:id/active', requireAdmin, (req, res) => {
+  const { is_active } = req.body || {}
+  if (Number(req.params.id) === req.user.id && !is_active) {
+    return res.status(400).json({ error: 'Cannot deactivate self' })
+  }
+  db.prepare('UPDATE users SET is_active=? WHERE id=?').run(is_active ? 1 : 0, req.params.id)
+  const u = db.prepare('SELECT id,email,full_name,is_admin,is_active FROM users WHERE id=?').get(req.params.id)
+  if (!u) return res.status(404).json({ error: 'Not found' })
+  res.json(u)
+})
+
 // ── Sheet Materials ───────────────────────────────────────────────────────
 app.get('/api/materials', requireAuth, (req, res) => {
   res.json(db.prepare('SELECT * FROM sheet_materials WHERE active=1 ORDER BY name').all())
