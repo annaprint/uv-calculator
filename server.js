@@ -5,7 +5,7 @@ const multer = require('multer')
 const XLSX = require('xlsx')
 const { createDb } = require('./db')
 const { calcSheet, calcSouvenir } = require('./calc')
-const { buildSessionMiddleware, loginUser } = require('./auth')
+const { buildSessionMiddleware, loginUser, loadUser, requireAuth, requireAdmin } = require('./auth')
 
 const app = express()
 const db = createDb()
@@ -17,7 +17,26 @@ app.use(buildSessionMiddleware({
   cookieSecure: process.env.COOKIE_SECURE === 'true',
   isTest: process.env.NODE_ENV === 'test'
 }))
-app.use(express.static(path.join(__dirname, 'public')))
+app.use(loadUser(db))
+
+// ── HTML routes (gated) ───────────────────────────────────────────────────
+app.get('/', (req, res) => {
+  if (!req.user) return res.redirect('/login')
+  res.sendFile(path.join(__dirname, 'public', 'index.html'))
+})
+
+app.get('/login', (req, res) => {
+  // Placeholder — Task 12 will add public/login.html
+  res.type('html').send('<!doctype html><title>Login</title><p>Login form coming soon (Task 12)</p>')
+})
+
+app.get('/admin.html', (req, res) => {
+  if (!req.user) return res.redirect('/login')
+  if (!req.user.is_admin) return res.status(403).send('Admin only')
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'))
+})
+
+app.use(express.static(path.join(__dirname, 'public'), { index: false }))
 
 // ── Health ────────────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => res.json({ ok: true }))
@@ -46,11 +65,11 @@ app.post('/api/logout', (req, res) => {
 })
 
 // ── Sheet Materials ───────────────────────────────────────────────────────
-app.get('/api/materials', (req, res) => {
+app.get('/api/materials', requireAuth, (req, res) => {
   res.json(db.prepare('SELECT * FROM sheet_materials WHERE active=1 ORDER BY name').all())
 })
 
-app.post('/api/materials', (req, res) => {
+app.post('/api/materials', requireAdmin, (req, res) => {
   const { name, price_per_sqm } = req.body
   if (!name || price_per_sqm == null) return res.status(400).json({ error: 'name and price_per_sqm required' })
   const stmt = db.prepare('INSERT INTO sheet_materials (name, price_per_sqm) VALUES (?, ?)')
@@ -58,7 +77,7 @@ app.post('/api/materials', (req, res) => {
   res.status(201).json(db.prepare('SELECT * FROM sheet_materials WHERE id=?').get(info.lastInsertRowid))
 })
 
-app.put('/api/materials/:id', (req, res) => {
+app.put('/api/materials/:id', requireAdmin, (req, res) => {
   const { name, price_per_sqm } = req.body
   if (!name || price_per_sqm == null) return res.status(400).json({ error: 'name and price_per_sqm required' })
   const info = db.prepare('UPDATE sheet_materials SET name=?, price_per_sqm=? WHERE id=?').run(name, price_per_sqm, req.params.id)
@@ -66,40 +85,40 @@ app.put('/api/materials/:id', (req, res) => {
   res.json(db.prepare('SELECT * FROM sheet_materials WHERE id=?').get(req.params.id))
 })
 
-app.delete('/api/materials/:id', (req, res) => {
+app.delete('/api/materials/:id', requireAdmin, (req, res) => {
   db.prepare('DELETE FROM sheet_materials WHERE id=?').run(req.params.id)
   res.json({ ok: true })
 })
 
 // ── Sheet Tiers ───────────────────────────────────────────────────────────
-app.get('/api/sheet-tiers', (req, res) => {
+app.get('/api/sheet-tiers', requireAuth, (req, res) => {
   res.json(db.prepare('SELECT * FROM sheet_tiers ORDER BY min_sqm ASC').all())
 })
 
-app.post('/api/sheet-tiers', (req, res) => {
+app.post('/api/sheet-tiers', requireAdmin, (req, res) => {
   const { min_sqm, price_per_sqm } = req.body
   if (min_sqm == null || price_per_sqm == null) return res.status(400).json({ error: 'min_sqm and price_per_sqm required' })
   const info = db.prepare('INSERT INTO sheet_tiers (min_sqm, price_per_sqm) VALUES (?, ?)').run(min_sqm, price_per_sqm)
   res.status(201).json(db.prepare('SELECT * FROM sheet_tiers WHERE id=?').get(info.lastInsertRowid))
 })
 
-app.put('/api/sheet-tiers/:id', (req, res) => {
+app.put('/api/sheet-tiers/:id', requireAdmin, (req, res) => {
   const { min_sqm, price_per_sqm } = req.body
   db.prepare('UPDATE sheet_tiers SET min_sqm=?, price_per_sqm=? WHERE id=?').run(min_sqm, price_per_sqm, req.params.id)
   res.json(db.prepare('SELECT * FROM sheet_tiers WHERE id=?').get(req.params.id))
 })
 
-app.delete('/api/sheet-tiers/:id', (req, res) => {
+app.delete('/api/sheet-tiers/:id', requireAdmin, (req, res) => {
   db.prepare('DELETE FROM sheet_tiers WHERE id=?').run(req.params.id)
   res.json({ ok: true })
 })
 
 // ── Souvenir Prices ───────────────────────────────────────────────────────
-app.get('/api/souvenir-prices', (req, res) => {
+app.get('/api/souvenir-prices', requireAuth, (req, res) => {
   res.json(db.prepare('SELECT * FROM souvenir_prices ORDER BY product_type').all())
 })
 
-app.post('/api/souvenir-prices', (req, res) => {
+app.post('/api/souvenir-prices', requireAdmin, (req, res) => {
   const { product_type, qty_up_to_29, qty_from_30, qty_from_100, qty_from_500, qty_from_1000 } = req.body
   if (!product_type || qty_up_to_29 == null || qty_from_30 == null || qty_from_100 == null || qty_from_500 == null || qty_from_1000 == null)
     return res.status(400).json({ error: 'product_type and all qty fields required' })
@@ -109,7 +128,7 @@ app.post('/api/souvenir-prices', (req, res) => {
   res.status(201).json(db.prepare('SELECT * FROM souvenir_prices WHERE id=?').get(info.lastInsertRowid))
 })
 
-app.put('/api/souvenir-prices/:id', (req, res) => {
+app.put('/api/souvenir-prices/:id', requireAdmin, (req, res) => {
   const { product_type, qty_up_to_29, qty_from_30, qty_from_100, qty_from_500, qty_from_1000 } = req.body
   db.prepare(
     'UPDATE souvenir_prices SET product_type=?,qty_up_to_29=?,qty_from_30=?,qty_from_100=?,qty_from_500=?,qty_from_1000=? WHERE id=?'
@@ -117,20 +136,20 @@ app.put('/api/souvenir-prices/:id', (req, res) => {
   res.json(db.prepare('SELECT * FROM souvenir_prices WHERE id=?').get(req.params.id))
 })
 
-app.delete('/api/souvenir-prices/:id', (req, res) => {
+app.delete('/api/souvenir-prices/:id', requireAdmin, (req, res) => {
   db.prepare('DELETE FROM souvenir_prices WHERE id=?').run(req.params.id)
   res.json({ ok: true })
 })
 
 // ── Catalog ───────────────────────────────────────────────────────────────
-app.get('/api/catalog', (req, res) => {
+app.get('/api/catalog', requireAuth, (req, res) => {
   const q = req.query.q ? `%${req.query.q}%` : '%'
   res.json(db.prepare(
     'SELECT c.*, s.product_type FROM catalog_items c LEFT JOIN souvenir_prices s ON c.souvenir_price_id=s.id WHERE c.name LIKE ? OR c.article LIKE ? ORDER BY c.name'
   ).all(q, q))
 })
 
-app.post('/api/catalog/import', upload.single('file'), (req, res) => {
+app.post('/api/catalog/import', requireAdmin, upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' })
   const wb = XLSX.read(req.file.buffer, { type: 'buffer' })
   const ws = wb.Sheets[wb.SheetNames[0]]
@@ -166,14 +185,14 @@ app.post('/api/catalog/import', upload.single('file'), (req, res) => {
   }
 })
 
-app.put('/api/catalog/:id/price-type', (req, res) => {
+app.put('/api/catalog/:id/price-type', requireAdmin, (req, res) => {
   const { souvenir_price_id } = req.body
   db.prepare('UPDATE catalog_items SET souvenir_price_id=? WHERE id=?').run(souvenir_price_id || null, req.params.id)
   res.json(db.prepare('SELECT * FROM catalog_items WHERE id=?').get(req.params.id))
 })
 
 // ── Calculations ──────────────────────────────────────────────────────────
-app.post('/api/calc/sheet', (req, res) => {
+app.post('/api/calc/sheet', requireAuth, (req, res) => {
   try {
     const materials = db.prepare('SELECT * FROM sheet_materials WHERE active=1').all()
     const tiers = db.prepare('SELECT * FROM sheet_tiers ORDER BY min_sqm').all()
@@ -184,7 +203,7 @@ app.post('/api/calc/sheet', (req, res) => {
   }
 })
 
-app.post('/api/calc/souvenir', (req, res) => {
+app.post('/api/calc/souvenir', requireAuth, (req, res) => {
   try {
     const prices = db.prepare('SELECT * FROM souvenir_prices').all()
     const result = calcSouvenir(req.body, prices)
@@ -195,11 +214,11 @@ app.post('/api/calc/souvenir', (req, res) => {
 })
 
 // ── Quotes ────────────────────────────────────────────────────────────────
-app.get('/api/quotes', (req, res) => {
+app.get('/api/quotes', requireAuth, (req, res) => {
   res.json(db.prepare('SELECT * FROM quotes ORDER BY created_at DESC').all())
 })
 
-app.post('/api/quotes', (req, res) => {
+app.post('/api/quotes', requireAuth, (req, res) => {
   const { type, params, result, kp_text } = req.body
   if (!type || !params || !result || !kp_text) return res.status(400).json({ error: 'type, params, result, kp_text required' })
   const info = db.prepare(
@@ -208,7 +227,7 @@ app.post('/api/quotes', (req, res) => {
   res.status(201).json(db.prepare('SELECT * FROM quotes WHERE id=?').get(info.lastInsertRowid))
 })
 
-app.delete('/api/quotes/:id', (req, res) => {
+app.delete('/api/quotes/:id', requireAuth, (req, res) => {
   db.prepare('DELETE FROM quotes WHERE id=?').run(req.params.id)
   res.json({ ok: true })
 })
