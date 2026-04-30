@@ -28,12 +28,21 @@ app.post('/api/login', async (req, res) => {
   if (!email || !password) return res.status(400).json({ error: 'email and password required' })
   const user = await loginUser(db, email, password)
   if (!user) return res.status(401).json({ error: 'Invalid credentials' })
-  req.session.userId = user.id
+  try {
+    await new Promise((resolve, reject) => req.session.regenerate(err => err ? reject(err) : resolve()))
+    req.session.userId = user.id
+    await new Promise((resolve, reject) => req.session.save(err => err ? reject(err) : resolve()))
+  } catch (e) {
+    return res.status(500).json({ error: 'session error' })
+  }
   res.json({ user: { id: user.id, email: user.email, full_name: user.full_name, is_admin: user.is_admin } })
 })
 
 app.post('/api/logout', (req, res) => {
-  req.session.destroy(() => res.json({ ok: true }))
+  req.session.destroy(() => {
+    res.clearCookie('connect.sid')
+    res.json({ ok: true })
+  })
 })
 
 // ── Sheet Materials ───────────────────────────────────────────────────────

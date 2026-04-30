@@ -49,21 +49,44 @@ describe('POST /api/login', () => {
   test('returns 401 on wrong password', async () => {
     const res = await agent.post('/api/login').send({ email: 'a@b.c', password: 'WRONG' })
     expect(res.status).toBe(401)
+    expect(res.body.error).toBe('Invalid credentials')
   })
 
   test('returns 401 on inactive user', async () => {
     const res = await agent.post('/api/login').send({ email: 'inactive@b.c', password: 'p' })
     expect(res.status).toBe(401)
+    expect(res.body.error).toBe('Invalid credentials')
   })
 
   test('returns 401 on unknown email', async () => {
     const res = await agent.post('/api/login').send({ email: 'nope@b.c', password: 'p' })
     expect(res.status).toBe(401)
+    expect(res.body.error).toBe('Invalid credentials')
   })
 
   test('POST /api/logout clears session', async () => {
     await agent.post('/api/login').send({ email: 'a@b.c', password: 'p' })
     const res = await agent.post('/api/logout')
     expect(res.status).toBe(200)
+  })
+
+  test('regenerates session id on each login', async () => {
+    function sidOf(setCookieHeader) {
+      return /connect\.sid=([^;]+)/.exec(setCookieHeader[0])?.[1]
+    }
+    const r1 = await agent.post('/api/login').send({ email: 'a@b.c', password: 'p' })
+    const firstCookie = sidOf(r1.headers['set-cookie'])
+    expect(firstCookie).toBeDefined()
+    await agent.post('/api/logout')
+    const r2 = await agent.post('/api/login').send({ email: 'a@b.c', password: 'p' })
+    const secondCookie = sidOf(r2.headers['set-cookie'])
+    expect(secondCookie).toBeDefined()
+    expect(secondCookie).not.toBe(firstCookie)
+  })
+
+  test('logout clears the connect.sid cookie', async () => {
+    await agent.post('/api/login').send({ email: 'a@b.c', password: 'p' })
+    const res = await agent.post('/api/logout')
+    expect(res.headers['set-cookie']?.some(c => /connect\.sid=;/.test(c))).toBe(true)
   })
 })
