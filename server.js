@@ -6,7 +6,7 @@ const XLSX = require('xlsx')
 const rateLimit = require('express-rate-limit')
 const { createDb } = require('./db')
 const { calcSheet, calcSouvenir } = require('./calc')
-const { buildSessionMiddleware, loginUser, loadUser, requireAuth, requireAdmin } = require('./auth')
+const { hashPassword, verifyPassword, buildSessionMiddleware, loginUser, loadUser, requireAuth, requireAdmin } = require('./auth')
 
 const app = express()
 const db = createDb()
@@ -71,6 +71,22 @@ app.post('/api/logout', (req, res) => {
     res.clearCookie('connect.sid')
     res.json({ ok: true })
   })
+})
+
+app.get('/api/users/me', requireAuth, (req, res) => {
+  res.json(req.user)
+})
+
+app.post('/api/users/me/change-password', requireAuth, async (req, res) => {
+  const { old_password, new_password } = req.body || {}
+  if (!old_password || !new_password) return res.status(400).json({ error: 'old_password and new_password required' })
+  const row = db.prepare('SELECT password_hash FROM users WHERE id=?').get(req.user.id)
+  if (!await verifyPassword(old_password, row.password_hash)) {
+    return res.status(400).json({ error: 'Wrong old password' })
+  }
+  const hash = await hashPassword(new_password)
+  db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(hash, req.user.id)
+  res.json({ ok: true })
 })
 
 // ── Sheet Materials ───────────────────────────────────────────────────────
