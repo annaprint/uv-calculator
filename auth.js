@@ -33,4 +33,11 @@ function buildSessionMiddleware({ secret, dbPath, cookieSecure, isTest }) {
   })
 }
 
-module.exports = { hashPassword, verifyPassword, buildSessionMiddleware }
+async function loginUser(db, email, password) {
+  const user = db.prepare('SELECT * FROM users WHERE email=?').get(email)
+  if (!user || !user.is_active) return null
+  const ok = await verifyPassword(password, user.password_hash)
+  return ok ? user : null
+}
+
+module.exports = { hashPassword, verifyPassword, buildSessionMiddleware, loginUser }

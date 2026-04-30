@@ -1,5 +1,7 @@
 // tests/auth.test.js
 const { hashPassword, verifyPassword } = require('../auth')
+const request = require('supertest')
+const { makeTestDb } = require('./helpers')
 
 describe('password hashing', () => {
   test('hashPassword returns a non-empty string different from input', async () => {
@@ -17,5 +19,51 @@ describe('password hashing', () => {
   test('verifyPassword returns false for wrong password', async () => {
     const hash = await hashPassword('secret123')
     expect(await verifyPassword('wrong', hash)).toBe(false)
+  })
+})
+
+describe('POST /api/login', () => {
+  let app, db, agent
+  beforeEach(async () => {
+    process.env.NODE_ENV = 'test'
+    db = makeTestDb()
+    const { hashPassword } = require('../auth')
+    db.prepare('INSERT INTO users (email,password_hash,full_name,is_admin,is_active) VALUES (?,?,?,1,1)')
+      .run('a@b.c', await hashPassword('p'), 'Anna')
+    db.prepare('INSERT INTO users (email,password_hash,full_name,is_admin,is_active) VALUES (?,?,?,0,0)')
+      .run('inactive@b.c', await hashPassword('p'), 'Off')
+    jest.resetModules()
+    jest.doMock('../db', () => ({ createDb: () => db }))
+    app = require('../server').app
+    agent = request.agent(app)
+  })
+
+  test('returns 200 and sets session cookie on correct credentials', async () => {
+    const res = await agent.post('/api/login').send({ email: 'a@b.c', password: 'p' })
+    expect(res.status).toBe(200)
+    expect(res.body.user.email).toBe('a@b.c')
+    expect(res.body.user.is_admin).toBe(1)
+    expect(res.headers['set-cookie']?.[0]).toMatch(/connect\.sid/)
+  })
+
+  test('returns 401 on wrong password', async () => {
+    const res = await agent.post('/api/login').send({ email: 'a@b.c', password: 'WRONG' })
+    expect(res.status).toBe(401)
+  })
+
+  test('returns 401 on inactive user', async () => {
+    const res = await agent.post('/api/login').send({ email: 'inactive@b.c', password: 'p' })
+    expect(res.status).toBe(401)
+  })
+
+  test('returns 401 on unknown email', async () => {
+    const res = await agent.post('/api/login').send({ email: 'nope@b.c', password: 'p' })
+    expect(res.status).toBe(401)
+  })
+
+  test('POST /api/logout clears session', async () => {
+    await agent.post('/api/login').send({ email: 'a@b.c', password: 'p' })
+    const res = await agent.post('/api/logout')
+    expect(res.status).toBe(200)
   })
 })

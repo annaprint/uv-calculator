@@ -5,7 +5,7 @@ const multer = require('multer')
 const XLSX = require('xlsx')
 const { createDb } = require('./db')
 const { calcSheet, calcSouvenir } = require('./calc')
-const { buildSessionMiddleware } = require('./auth')
+const { buildSessionMiddleware, loginUser } = require('./auth')
 
 const app = express()
 const db = createDb()
@@ -21,6 +21,20 @@ app.use(express.static(path.join(__dirname, 'public')))
 
 // ── Health ────────────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => res.json({ ok: true }))
+
+// ── Auth ──────────────────────────────────────────────────────────────────
+app.post('/api/login', async (req, res) => {
+  const { email, password } = req.body || {}
+  if (!email || !password) return res.status(400).json({ error: 'email and password required' })
+  const user = await loginUser(db, email, password)
+  if (!user) return res.status(401).json({ error: 'Invalid credentials' })
+  req.session.userId = user.id
+  res.json({ user: { id: user.id, email: user.email, full_name: user.full_name, is_admin: user.is_admin } })
+})
+
+app.post('/api/logout', (req, res) => {
+  req.session.destroy(() => res.json({ ok: true }))
+})
 
 // ── Sheet Materials ───────────────────────────────────────────────────────
 app.get('/api/materials', (req, res) => {
