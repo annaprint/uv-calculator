@@ -1,5 +1,6 @@
 // tests/api.test.js
-const { makeTestDb } = require('./helpers')
+const request = require('supertest')
+const { makeTestDb, createUser, loginAs } = require('./helpers')
 
 describe('database schema', () => {
   test('creates all required tables', () => {
@@ -13,26 +14,26 @@ describe('database schema', () => {
     expect(tables).toContain('souvenir_prices')
     expect(tables).toContain('catalog_items')
     expect(tables).toContain('quotes')
+    expect(tables).toContain('users')
   })
 })
 
-const request = require('supertest')
+let app, db, agent
 
-let app, db
-
-beforeEach(() => {
+beforeEach(async () => {
+  process.env.NODE_ENV = 'test'
   db = makeTestDb()
-  // Re-require app with test db
+  await createUser(db, { email: 'admin@test', password: 'p', isAdmin: true })
   jest.resetModules()
   jest.doMock('../db', () => ({ createDb: () => db }))
-  process.env.NODE_ENV = 'test'
-  const mod = require('../server')
-  app = mod.app
+  app = require('../server').app
+  agent = request.agent(app)
+  await loginAs(agent, 'admin@test', 'p')
 })
 
 describe('GET /api/health', () => {
   test('returns ok', async () => {
-    const res = await request(app).get('/api/health')
+    const res = await agent.get('/api/health')
     expect(res.status).toBe(200)
     expect(res.body.ok).toBe(true)
   })
@@ -40,13 +41,13 @@ describe('GET /api/health', () => {
 
 describe('materials API', () => {
   test('GET /api/materials returns empty array initially', async () => {
-    const res = await request(app).get('/api/materials')
+    const res = await agent.get('/api/materials')
     expect(res.status).toBe(200)
     expect(res.body).toEqual([])
   })
 
   test('POST /api/materials creates a material', async () => {
-    const res = await request(app)
+    const res = await agent
       .post('/api/materials')
       .send({ name: 'Картон', price_per_sqm: 2000 })
     expect(res.status).toBe(201)
@@ -55,10 +56,10 @@ describe('materials API', () => {
   })
 
   test('PUT /api/materials/:id updates price', async () => {
-    const created = await request(app)
+    const created = await agent
       .post('/api/materials')
       .send({ name: 'Картон', price_per_sqm: 2000 })
-    const res = await request(app)
+    const res = await agent
       .put(`/api/materials/${created.body.id}`)
       .send({ name: 'Картон', price_per_sqm: 2200 })
     expect(res.status).toBe(200)
@@ -66,19 +67,19 @@ describe('materials API', () => {
   })
 
   test('DELETE /api/materials/:id removes material', async () => {
-    const created = await request(app)
+    const created = await agent
       .post('/api/materials')
       .send({ name: 'Картон', price_per_sqm: 2000 })
-    const del = await request(app).delete(`/api/materials/${created.body.id}`)
+    const del = await agent.delete(`/api/materials/${created.body.id}`)
     expect(del.status).toBe(200)
-    const list = await request(app).get('/api/materials')
+    const list = await agent.get('/api/materials')
     expect(list.body).toHaveLength(0)
   })
 })
 
 describe('sheet tiers API', () => {
   test('POST /api/sheet-tiers creates a tier', async () => {
-    const res = await request(app)
+    const res = await agent
       .post('/api/sheet-tiers')
       .send({ min_sqm: 0, price_per_sqm: 800 })
     expect(res.status).toBe(201)
@@ -86,9 +87,9 @@ describe('sheet tiers API', () => {
   })
 
   test('GET /api/sheet-tiers returns sorted by min_sqm', async () => {
-    await request(app).post('/api/sheet-tiers').send({ min_sqm: 20, price_per_sqm: 500 })
-    await request(app).post('/api/sheet-tiers').send({ min_sqm: 0,  price_per_sqm: 800 })
-    const res = await request(app).get('/api/sheet-tiers')
+    await agent.post('/api/sheet-tiers').send({ min_sqm: 20, price_per_sqm: 500 })
+    await agent.post('/api/sheet-tiers').send({ min_sqm: 0,  price_per_sqm: 800 })
+    const res = await agent.get('/api/sheet-tiers')
     expect(res.body[0].min_sqm).toBe(0)
     expect(res.body[1].min_sqm).toBe(20)
   })
@@ -96,7 +97,7 @@ describe('sheet tiers API', () => {
 
 describe('souvenir prices API', () => {
   test('POST /api/souvenir-prices creates a price entry', async () => {
-    const res = await request(app).post('/api/souvenir-prices').send({
+    const res = await agent.post('/api/souvenir-prices').send({
       product_type: 'Ручки (пластик)',
       qty_up_to_29: 1500,
       qty_from_30: 45,
@@ -111,14 +112,14 @@ describe('souvenir prices API', () => {
 
 describe('POST /api/calc/sheet', () => {
   beforeEach(async () => {
-    await request(app).post('/api/materials').send({ name: 'Картон', price_per_sqm: 2000 })
-    await request(app).post('/api/sheet-tiers').send({ min_sqm: 0, price_per_sqm: 800 })
-    await request(app).post('/api/sheet-tiers').send({ min_sqm: 20, price_per_sqm: 500 })
+    await agent.post('/api/materials').send({ name: 'Картон', price_per_sqm: 2000 })
+    await agent.post('/api/sheet-tiers').send({ min_sqm: 0, price_per_sqm: 800 })
+    await agent.post('/api/sheet-tiers').send({ min_sqm: 20, price_per_sqm: 500 })
   })
 
   test('returns calculation result', async () => {
-    const matRes = await request(app).get('/api/materials')
-    const res = await request(app).post('/api/calc/sheet').send({
+    const matRes = await agent.get('/api/materials')
+    const res = await agent.post('/api/calc/sheet').send({
       widthMm: 600, heightMm: 900, qty: 50,
       materialId: matRes.body[0].id,
       clientMaterial: false,
@@ -130,7 +131,7 @@ describe('POST /api/calc/sheet', () => {
   })
 
   test('returns 400 when material not found', async () => {
-    const res = await request(app).post('/api/calc/sheet').send({
+    const res = await agent.post('/api/calc/sheet').send({
       widthMm: 600, heightMm: 900, qty: 10,
       materialId: 9999, clientMaterial: false,
       uvVarnish: false, reliefLayers: 0, urgent: false
@@ -142,7 +143,7 @@ describe('POST /api/calc/sheet', () => {
 
 describe('POST /api/calc/souvenir', () => {
   beforeEach(async () => {
-    await request(app).post('/api/souvenir-prices').send({
+    await agent.post('/api/souvenir-prices').send({
       product_type: 'Ручки (пластик)',
       qty_up_to_29: 1500, qty_from_30: 45,
       qty_from_100: 29, qty_from_500: 20, qty_from_1000: 14
@@ -150,8 +151,8 @@ describe('POST /api/calc/souvenir', () => {
   })
 
   test('returns calculation for qty >= 100', async () => {
-    const prices = await request(app).get('/api/souvenir-prices')
-    const res = await request(app).post('/api/calc/souvenir').send({
+    const prices = await agent.get('/api/souvenir-prices')
+    const res = await agent.post('/api/calc/souvenir').send({
       productTypeId: prices.body[0].id,
       qty: 100, uvVarnish: false, reliefLayers: 0, urgent: false
     })
@@ -162,13 +163,13 @@ describe('POST /api/calc/souvenir', () => {
 
 describe('quotes API', () => {
   test('POST then GET /api/quotes', async () => {
-    await request(app).post('/api/quotes').send({
+    await agent.post('/api/quotes').send({
       type: 'sheet',
       params: { widthMm: 600 },
       result: { total: 5000 },
       kp_text: 'КП тест'
     })
-    const res = await request(app).get('/api/quotes')
+    const res = await agent.get('/api/quotes')
     expect(res.body).toHaveLength(1)
     expect(res.body[0].kp_text).toBe('КП тест')
   })
