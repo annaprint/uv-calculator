@@ -35,8 +35,7 @@ app.get('/', (req, res) => {
 })
 
 app.get('/login', (req, res) => {
-  // Placeholder — Task 12 will add public/login.html
-  res.type('html').send('<!doctype html><title>Login</title><p>Login form coming soon (Task 12)</p>')
+  res.sendFile(path.join(__dirname, 'public', 'login.html'))
 })
 
 app.get('/admin.html', (req, res) => {

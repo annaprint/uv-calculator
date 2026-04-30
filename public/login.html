@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Вход — UV-калькулятор</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    body { font-family: system-ui, sans-serif; background: #f5f5f5; display:flex; align-items:center; justify-content:center; min-height:100vh; margin:0; }
+    form { background:#fff; padding:32px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,.1); width:320px; }
+    h1 { margin:0 0 16px; font-size:20px; }
+    label { display:block; margin:12px 0 4px; }
+    input { width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; box-sizing:border-box; }
+    button { margin-top:16px; width:100%; padding:10px; border:0; border-radius:4px; background:#0066cc; color:#fff; font-size:14px; cursor:pointer; }
+    .err { color:#c00; margin-top:8px; min-height:1em; font-size:13px; }
+  </style>
+</head>
+<body>
+  <form id="login-form">
+    <h1>Вход в калькулятор</h1>
+    <label>Email <input name="email" type="email" required autofocus></label>
+    <label>Пароль <input name="password" type="password" required></label>
+    <button type="submit">Войти</button>
+    <div class="err" id="err"></div>
+  </form>
+  <script src="/js/login.js"></script>
+</body>
+</html>
