@@ -55,6 +55,7 @@
   <div class="nav-item" onclick="showSection('souvenir', this)">🎁 Сувенирная печать</div>
   <div class="nav-item" onclick="showSection('catalog', this)">📦 Каталог товаров</div>
   <div class="nav-item" onclick="showSection('quotes', this)">📋 Сохранённые КП</div>
+  <div class="nav-item" onclick="showSection('users', this)">👥 Пользователи</div>
   <div style="position:absolute;bottom:16px;left:0;right:0;padding:0 20px;">
     <a href="/" style="color:#94a3b8;font-size:12px;text-decoration:none;">← Калькулятор</a>
   </div>
@@ -137,6 +138,17 @@
     <table>
       <thead><tr><th>Дата</th><th>Тип</th><th>Итого</th><th>Текст КП</th><th></th></tr></thead>
       <tbody id="quotes-body"></tbody>
+    </table>
+  </div>
+
+  <!-- Users -->
+  <div id="sec-users" class="section">
+    <h2>Пользователи</h2>
+    <p class="hint">Менеджеры и администраторы. Деактивированный пользователь не сможет зайти.</p>
+    <button class="btn btn-primary" id="user-create-btn" onclick="createUserPrompt()" style="margin-bottom:12px;">+ Добавить пользователя</button>
+    <table id="users-table">
+      <thead><tr><th>Имя</th><th>Email</th><th>Роль</th><th>Активен</th><th></th></tr></thead>
+      <tbody id="users-body"></tbody>
     </table>
   </div>
 

@@ -11,6 +11,7 @@ function showSection(name, el) {
   if (name === 'souvenir') loadSouvenir()
   if (name === 'catalog') loadCatalog()
   if (name === 'quotes') loadQuotes()
+  if (name === 'users') loadUsers()
 }
 
 function showToast(msg = 'Сохранено ✓') {
@@ -264,6 +265,90 @@ async function deleteQuote(id) {
 // ── Utility ───────────────────────────────────────────────────────────────
 function esc(str) {
   return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+}
+
+// ── Users (admin) ─────────────────────────────────────────────────────────
+let users = []
+
+async function loadUsers() {
+  try {
+    users = await api('GET', '/api/users')
+    renderUsers()
+  } catch (e) { showToast('Ошибка: ' + e.message) }
+}
+
+function renderUsers() {
+  document.getElementById('users-body').innerHTML = users.map(u => `
+    <tr>
+      <td>${esc(u.full_name)}</td>
+      <td>${esc(u.email)}</td>
+      <td>${u.is_admin ? 'Админ' : 'Менеджер'}</td>
+      <td>${u.is_active ? '✓' : '—'}</td>
+      <td>
+        <button onclick="renameUser(${u.id})">Имя</button>
+        <button onclick="resetUserPassword(${u.id})">Пароль</button>
+        <button onclick="toggleUserAdmin(${u.id})">${u.is_admin ? 'Менеджер' : 'Админ'}</button>
+        <button class="btn-danger" onclick="toggleUserActive(${u.id})">${u.is_active ? 'Выкл' : 'Вкл'}</button>
+      </td>
+    </tr>`).join('')
+}
+
+async function createUserPrompt() {
+  const email = prompt('Email:')
+  if (!email) return
+  const full_name = prompt('Имя:')
+  if (!full_name) return
+  const password = prompt('Временный пароль:')
+  if (!password) return
+  const is_admin = confirm('Сделать админом?') ? 1 : 0
+  try {
+    await api('POST', '/api/users', { email, full_name, password, is_admin })
+    showToast('Пользователь добавлен')
+    loadUsers()
+  } catch (e) { showToast('Ошибка: ' + e.message) }
+}
+
+async function renameUser(id) {
+  const u = users.find(x => x.id === id)
+  if (!u) return
+  const full_name = prompt('Новое имя:', u.full_name)
+  if (!full_name || full_name === u.full_name) return
+  try {
+    await api('PUT', `/api/users/${id}`, { full_name })
+    showToast('Сохранено ✓')
+    loadUsers()
+  } catch (e) { showToast('Ошибка: ' + e.message) }
+}
+
+async function resetUserPassword(id) {
+  const new_password = prompt('Новый пароль:')
+  if (!new_password) return
+  try {
+    await api('POST', `/api/users/${id}/reset-password`, { new_password })
+    showToast('Пароль обновлён')
+  } catch (e) { showToast('Ошибка: ' + e.message) }
+}
+
+async function toggleUserAdmin(id) {
+  const u = users.find(x => x.id === id)
+  if (!u) return
+  if (!confirm(u.is_admin ? `Снять права админа у ${u.full_name}?` : `Дать права админа ${u.full_name}?`)) return
+  try {
+    await api('PUT', `/api/users/${id}`, { is_admin: u.is_admin ? 0 : 1 })
+    showToast('Сохранено ✓')
+    loadUsers()
+  } catch (e) { showToast('Ошибка: ' + e.message) }
+}
+
+async function toggleUserActive(id) {
+  const u = users.find(x => x.id === id)
+  if (!u) return
+  if (!confirm(u.is_active ? `Деактивировать ${u.full_name}?` : `Активировать ${u.full_name}?`)) return
+  try {
+    await api('PUT', `/api/users/${id}/active`, { is_active: u.is_active ? 0 : 1 })
+    showToast('Сохранено ✓')
+    loadUsers()
+  } catch (e) { showToast('Ошибка: ' + e.message) }
 }
 
 // Init
