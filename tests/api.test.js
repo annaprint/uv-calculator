@@ -25,6 +25,7 @@ beforeEach(() => {
   // Re-require app with test db
   jest.resetModules()
   jest.doMock('../db', () => ({ createDb: () => db }))
+  process.env.NODE_ENV = 'test'
   const mod = require('../server')
   app = mod.app
 })

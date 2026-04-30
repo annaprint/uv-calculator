@@ -5,12 +5,18 @@ const multer = require('multer')
 const XLSX = require('xlsx')
 const { createDb } = require('./db')
 const { calcSheet, calcSouvenir } = require('./calc')
+const { buildSessionMiddleware } = require('./auth')
 
 const app = express()
 const db = createDb()
 const upload = multer({ storage: multer.memoryStorage() })
 
 app.use(express.json())
+app.use(buildSessionMiddleware({
+  secret: process.env.SESSION_SECRET,
+  cookieSecure: process.env.COOKIE_SECURE === 'true',
+  isTest: process.env.NODE_ENV === 'test'
+}))
 app.use(express.static(path.join(__dirname, 'public')))
 
 // ── Health ────────────────────────────────────────────────────────────────
