@@ -1,6 +1,7 @@
 // server.js
 const express = require('express')
 const path = require('path')
+const fs = require('fs')
 const multer = require('multer')
 const XLSX = require('xlsx')
 const rateLimit = require('express-rate-limit')
@@ -295,6 +296,44 @@ app.post('/api/calc/souvenir', requireAuth, (req, res) => {
   } catch (e) {
     res.status(400).json({ error: e.message })
   }
+})
+
+// ── Company settings ──────────────────────────────────────────────────────
+const UPLOADS_DIR = path.join(__dirname, 'data', 'uploads')
+fs.mkdirSync(UPLOADS_DIR, { recursive: true })
+
+const logoUpload = multer({
+  storage: multer.diskStorage({
+    destination: UPLOADS_DIR,
+    filename: (_req, _file, cb) => cb(null, 'logo.png')
+  }),
+  limits: { fileSize: 1024 * 1024 }
+})
+
+function readSettings() {
+  const rows = db.prepare('SELECT key, value FROM company_settings').all()
+  const obj = {}
+  rows.forEach(r => obj[r.key] = r.value)
+  return obj
+}
+
+app.get('/api/company-settings', requireAuth, (req, res) => {
+  res.json(readSettings())
+})
+
+app.put('/api/company-settings', requireAdmin, (req, res) => {
+  const upsert = db.prepare('INSERT INTO company_settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value')
+  for (const [k, v] of Object.entries(req.body || {})) {
+    upsert.run(k, v == null ? '' : String(v))
+  }
+  res.json(readSettings())
+})
+
+app.post('/api/company-settings/logo', requireAdmin, logoUpload.single('logo'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file' })
+  db.prepare('INSERT INTO company_settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value')
+    .run('logo_path', req.file.path)
+  res.json({ ok: true, path: req.file.path })
 })
 
 // ── Clients ───────────────────────────────────────────────────────────────
