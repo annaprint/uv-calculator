@@ -172,8 +172,8 @@ describe('quotes API', () => {
       kp_text: 'КП тест'
     })
     const res = await agent.get('/api/quotes')
-    expect(res.body).toHaveLength(1)
-    expect(res.body[0].kp_text).toBe('КП тест')
+    expect(res.body.items).toHaveLength(1)
+    expect(res.body.items[0].kp_text).toBe('КП тест')
   })
 
   test('POST /api/quotes saves user_id, client_id, comment, total', async () => {

@@ -241,13 +241,16 @@ async function importCatalog(input) {
 // ── Quotes ────────────────────────────────────────────────────────────────
 async function loadQuotes() {
   try {
-    const quotes = await api('GET', '/api/quotes')
+    const data = await api('GET', '/api/quotes?limit=200')
+    const quotes = data.items
     document.getElementById('quotes-body').innerHTML = quotes.map(q => {
-      const res = JSON.parse(q.result)
+      const total = q.total != null ? q.total.toLocaleString('ru-RU') : '—'
       return `<tr>
         <td style="font-size:12px;color:#64748b;">${q.created_at}</td>
         <td>${q.type === 'sheet' ? '📄 Листовая' : '🎁 Сувенирная'}</td>
-        <td style="font-weight:600;">${res.total?.toLocaleString('ru-RU')} ₽</td>
+        <td style="font-weight:600;">${total} ₽</td>
+        <td style="font-size:12px;color:#94a3b8;">${esc(q.user_name || '—')}</td>
+        <td style="font-size:12px;color:#94a3b8;">${esc(q.client_name || '—')}</td>
         <td style="font-size:12px;max-width:200px;white-space:pre-wrap;">${esc(q.kp_text)}</td>
         <td><button class="btn-danger" onclick="deleteQuote(${q.id})">✕</button></td>
       </tr>`

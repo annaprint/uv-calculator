@@ -343,7 +343,32 @@ app.delete('/api/clients/:id', requireAdmin, (req, res) => {
 
 // ── Quotes ────────────────────────────────────────────────────────────────
 app.get('/api/quotes', requireAuth, (req, res) => {
-  res.json(db.prepare('SELECT * FROM quotes ORDER BY created_at DESC').all())
+  const where = []
+  const params = {}
+  if (req.query.q) { where.push('(q.kp_text LIKE @q OR q.params LIKE @q OR q.comment LIKE @q)'); params.q = `%${req.query.q}%` }
+  if (req.query.type) { where.push('q.type = @type'); params.type = req.query.type }
+  if (req.query.date_from) { where.push("date(q.created_at) >= date(@df)"); params.df = req.query.date_from }
+  if (req.query.date_to)   { where.push("date(q.created_at) <= date(@dt)"); params.dt = req.query.date_to }
+  if (req.query.user_id)   { where.push('q.user_id = @uid');   params.uid = +req.query.user_id }
+  if (req.query.client_id) { where.push('q.client_id = @cid'); params.cid = +req.query.client_id }
+  if (req.query.total_from){ where.push('q.total >= @tf'); params.tf = +req.query.total_from }
+  if (req.query.total_to)  { where.push('q.total <= @tt'); params.tt = +req.query.total_to }
+  const whereSql = where.length ? 'WHERE ' + where.join(' AND ') : ''
+  const sortCol = req.query.sort === 'total' ? 'q.total' : 'q.created_at'
+  const dir = req.query.dir === 'asc' ? 'ASC' : 'DESC'
+  const limit = Math.min(+req.query.limit || 50, 200)
+  const offset = +req.query.offset || 0
+  const items = db.prepare(
+    `SELECT q.*, u.full_name AS user_name, c.name AS client_name
+     FROM quotes q
+     LEFT JOIN users u ON q.user_id = u.id
+     LEFT JOIN clients c ON q.client_id = c.id
+     ${whereSql}
+     ORDER BY ${sortCol} ${dir}
+     LIMIT @limit OFFSET @offset`
+  ).all({ ...params, limit, offset })
+  const total = db.prepare(`SELECT COUNT(*) AS c FROM quotes q ${whereSql}`).get(params).c
+  res.json({ items, total, limit, offset })
 })
 
 app.post('/api/quotes', requireAuth, (req, res) => {
