@@ -7,7 +7,7 @@ const XLSX = require('xlsx')
 const rateLimit = require('express-rate-limit')
 const { createDb } = require('./db')
 const { calcSheet, calcSouvenir } = require('./calc')
-const { hashPassword, verifyPassword, normalizeEmail, buildSessionMiddleware, loginUser, loadUser, requireAuth, requireAdmin } = require('./auth')
+const { hashPassword, verifyPassword, normalizeEmail, validatePassword, buildSessionMiddleware, loginUser, loadUser, requireAuth, requireAdmin } = require('./auth')
 const { generateQuotePdf } = require('./pdf')
 const { createBackup } = require('./backup')
 
@@ -94,13 +94,20 @@ app.get('/api/users/me', requireAuth, (req, res) => {
 app.post('/api/users/me/change-password', requireAuth, async (req, res) => {
   const { old_password, new_password } = req.body || {}
   if (!old_password || !new_password) return res.status(400).json({ error: 'old_password and new_password required' })
+  const pwdErr = validatePassword(new_password)
+  if (pwdErr) return res.status(400).json({ error: pwdErr })
   const row = db.prepare('SELECT password_hash FROM users WHERE id=?').get(req.user.id)
   if (!await verifyPassword(old_password, row.password_hash)) {
     return res.status(400).json({ error: 'Wrong old password' })
   }
   const hash = await hashPassword(new_password)
   db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(hash, req.user.id)
-  res.json({ ok: true })
+  // Regenerate session id so a hijacked cookie can't survive a password change.
+  req.session.regenerate(err => {
+    if (err) return res.status(500).json({ error: 'session error' })
+    req.session.userId = req.user.id
+    req.session.save(() => res.json({ ok: true }))
+  })
 })
 
 // ── Users (admin) ─────────────────────────────────────────────────────────
@@ -118,6 +125,8 @@ app.get('/api/users', requireAdmin, (req, res) => {
 app.post('/api/users', requireAdmin, async (req, res) => {
   const { email, password, full_name, is_admin = 0 } = req.body || {}
   if (!email || !password || !full_name) return res.status(400).json({ error: 'email, password, full_name required' })
+  const pwdErr = validatePassword(password)
+  if (pwdErr) return res.status(400).json({ error: pwdErr })
   const normalized = normalizeEmail(email)
   const dup = db.prepare('SELECT id FROM users WHERE email=?').get(normalized)
   if (dup) return res.status(409).json({ error: 'Email already exists' })
@@ -143,6 +152,8 @@ app.put('/api/users/:id', requireAdmin, (req, res) => {
 app.post('/api/users/:id/reset-password', requireAdmin, async (req, res) => {
   const { new_password } = req.body || {}
   if (!new_password) return res.status(400).json({ error: 'new_password required' })
+  const pwdErr = validatePassword(new_password)
+  if (pwdErr) return res.status(400).json({ error: pwdErr })
   const hash = await hashPassword(new_password)
   const info = db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(hash, req.params.id)
   if (info.changes === 0) return res.status(404).json({ error: 'Not found' })

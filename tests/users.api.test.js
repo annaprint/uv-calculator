@@ -26,18 +26,25 @@ describe('GET /api/users/me', () => {
 
   test('POST /api/users/me/change-password updates password', async () => {
     const res = await agent.post('/api/users/me/change-password')
-      .send({ old_password: 'p', new_password: 'newpass' })
+      .send({ old_password: 'p', new_password: 'newpass1' })
     expect(res.status).toBe(200)
     // re-login с новым паролем
     const agent2 = request.agent(app)
-    const r = await loginAs(agent2, 'a@b.c', 'newpass')
+    const r = await loginAs(agent2, 'a@b.c', 'newpass1')
     expect(r.status).toBe(200)
   })
 
   test('change-password rejects wrong old password', async () => {
     const res = await agent.post('/api/users/me/change-password')
-      .send({ old_password: 'WRONG', new_password: 'newpass' })
+      .send({ old_password: 'WRONG', new_password: 'newpass1' })
     expect(res.status).toBe(400)
+  })
+
+  test('change-password rejects password shorter than 8', async () => {
+    const res = await agent.post('/api/users/me/change-password')
+      .send({ old_password: 'p', new_password: 'short' })
+    expect(res.status).toBe(400)
+    expect(res.body.error).toMatch(/8 символ/i)
   })
 })
 
@@ -57,16 +64,24 @@ describe('admin user management', () => {
 
   test('POST /api/users creates a new user', async () => {
     const res = await agent.post('/api/users').send({
-      email: 'new@b.c', password: 'pp', full_name: 'New', is_admin: 0
+      email: 'new@b.c', password: 'password1', full_name: 'New', is_admin: 0
     })
     expect(res.status).toBe(201)
     expect(res.body.email).toBe('new@b.c')
     expect(res.body.password_hash).toBeUndefined()
   })
 
+  test('POST /api/users rejects passwords shorter than 8', async () => {
+    const res = await agent.post('/api/users').send({
+      email: 'short@b.c', password: '1234567', full_name: 'Short'
+    })
+    expect(res.status).toBe(400)
+    expect(res.body.error).toMatch(/8 символ/i)
+  })
+
   test('GET /api/users lists users sorted by full_name', async () => {
-    await agent.post('/api/users').send({ email: 'b@b.c', password: 'p', full_name: 'Boris' })
-    await agent.post('/api/users').send({ email: 'a@b.c', password: 'p', full_name: 'Anna' })
+    await agent.post('/api/users').send({ email: 'b@b.c', password: 'pass1234', full_name: 'Boris' })
+    await agent.post('/api/users').send({ email: 'a@b.c', password: 'pass1234', full_name: 'Anna' })
     const res = await agent.get('/api/users')
     expect(res.body.length).toBeGreaterThanOrEqual(3)
     const names = res.body.map(u => u.full_name)
@@ -74,7 +89,7 @@ describe('admin user management', () => {
   })
 
   test('PUT /api/users/:id updates full_name and is_admin', async () => {
-    const c = await agent.post('/api/users').send({ email:'x@b.c', password:'p', full_name:'X' })
+    const c = await agent.post('/api/users').send({ email:'x@b.c', password:'pass1234', full_name:'X' })
     const r = await agent.put(`/api/users/${c.body.id}`).send({ full_name: 'XX', is_admin: 1 })
     expect(r.status).toBe(200)
     expect(r.body.full_name).toBe('XX')
@@ -82,15 +97,15 @@ describe('admin user management', () => {
   })
 
   test('POST /api/users/:id/reset-password sets new hash', async () => {
-    const c = await agent.post('/api/users').send({ email:'x@b.c', password:'p', full_name:'X' })
-    const r = await agent.post(`/api/users/${c.body.id}/reset-password`).send({ new_password: 'reset!' })
+    const c = await agent.post('/api/users').send({ email:'x@b.c', password:'pass1234', full_name:'X' })
+    const r = await agent.post(`/api/users/${c.body.id}/reset-password`).send({ new_password: 'reset123' })
     expect(r.status).toBe(200)
     const a2 = request.agent(app)
-    expect((await loginAs(a2, 'x@b.c', 'reset!')).status).toBe(200)
+    expect((await loginAs(a2, 'x@b.c', 'reset123')).status).toBe(200)
   })
 
   test('PUT /api/users/:id/active toggles is_active', async () => {
-    const c = await agent.post('/api/users').send({ email:'x@b.c', password:'p', full_name:'X' })
+    const c = await agent.post('/api/users').send({ email:'x@b.c', password:'pass1234', full_name:'X' })
     const r = await agent.put(`/api/users/${c.body.id}/active`).send({ is_active: 0 })
     expect(r.status).toBe(200)
     expect(r.body.is_active).toBe(0)
@@ -111,7 +126,7 @@ describe('admin user management', () => {
 
   test('demote admin succeeds when another active admin remains', async () => {
     const c = await agent.post('/api/users').send({
-      email: 'admin2@b.c', password: 'p', full_name: 'A2', is_admin: 1
+      email: 'admin2@b.c', password: 'pass1234', full_name: 'A2', is_admin: 1
     })
     const r = await agent.put(`/api/users/${c.body.id}`).send({ is_admin: 0 })
     expect(r.status).toBe(200)
@@ -127,7 +142,7 @@ describe('admin user management', () => {
 
   test('POST /api/users normalizes email to lowercase', async () => {
     const res = await agent.post('/api/users').send({
-      email: '  NEW@B.c  ', password: 'pp', full_name: 'New'
+      email: '  NEW@B.c  ', password: 'pass1234', full_name: 'New'
     })
     expect(res.status).toBe(201)
     expect(res.body.email).toBe('new@b.c')

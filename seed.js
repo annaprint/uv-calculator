@@ -1,10 +1,12 @@
 // seed.js
 const { createDb } = require('./db')
-const { hashPassword, normalizeEmail } = require('./auth')
+const { hashPassword, normalizeEmail, validatePassword } = require('./auth')
 
 async function ensureFirstAdmin(db, opts) {
   const { email, password, fullName } = opts || {}
   if (!email || !password) throw new Error('ADMIN_EMAIL and ADMIN_PASS are required')
+  const pwdErr = validatePassword(password)
+  if (pwdErr) throw new Error(pwdErr)
   const normalized = normalizeEmail(email)
   const existing = db.prepare('SELECT id FROM users WHERE email=?').get(normalized)
   if (existing) return

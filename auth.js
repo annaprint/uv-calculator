@@ -3,6 +3,14 @@ const bcrypt = require('bcryptjs')
 const session = require('express-session')
 
 const SALT_ROUNDS = 10
+const MIN_PASSWORD_LEN = 8
+
+function validatePassword(p) {
+  if (typeof p !== 'string' || p.length < MIN_PASSWORD_LEN) {
+    return `Пароль должен быть не короче ${MIN_PASSWORD_LEN} символов`
+  }
+  return null
+}
 
 async function hashPassword(plaintext) {
   return bcrypt.hash(plaintext, SALT_ROUNDS)
@@ -77,4 +85,4 @@ function requireAdmin(req, res, next) {
   next()
 }
 
-module.exports = { hashPassword, verifyPassword, normalizeEmail, buildSessionMiddleware, loginUser, loadUser, requireAuth, requireAdmin }
+module.exports = { hashPassword, verifyPassword, normalizeEmail, validatePassword, buildSessionMiddleware, loginUser, loadUser, requireAuth, requireAdmin }
