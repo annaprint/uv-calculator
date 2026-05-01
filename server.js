@@ -13,7 +13,13 @@ const { createBackup } = require('./backup')
 
 const app = express()
 const db = createDb()
-const upload = multer({ storage: multer.memoryStorage() })
+// Catalog .xlsx import — capped well below nginx client_max_body_size (5 MB).
+// xlsx parse can amplify memory ~50× so a hard upper bound on input size is
+// the cheapest mitigation against a hostile/oversized upload.
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024, files: 1 }
+})
 
 // Behind nginx in production: trust the first hop so secure cookies and
 // req.ip work correctly with X-Forwarded-* headers.

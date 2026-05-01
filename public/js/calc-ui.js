@@ -17,7 +17,14 @@ async function api(method, path, body) {
 }
 
 function fmt(n) { return Number(n).toLocaleString('ru-RU') + ' ₽' }
-function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
+function esc(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
 
 // ── Init ──────────────────────────────────────────────────────────────────
 async function init() {
