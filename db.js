@@ -105,6 +105,30 @@ const migrations = [
         } catch {}
       }
     }
+  },
+  {
+    version: 5,
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE company_settings (
+          key TEXT PRIMARY KEY,
+          value TEXT
+        );
+        ALTER TABLE quotes ADD COLUMN pdf_path TEXT;
+      `)
+      const ins = db.prepare('INSERT OR IGNORE INTO company_settings (key,value) VALUES (?,?)')
+      ins.run('name',             'Сити Принт')
+      ins.run('inn',              '')
+      ins.run('kpp',              '')
+      ins.run('address',          'Екатеринбург')
+      ins.run('phone',            '')
+      ins.run('email',            '')
+      ins.run('site',             'https://citi-print.ru')
+      ins.run('bank_details',     '')
+      ins.run('logo_path',        '')
+      ins.run('signature',        'Анна, типография «Сити Принт»')
+      ins.run('kp_validity_days', '7')
+    }
   }
 ]
 

@@ -76,6 +76,30 @@ describe('migration v3 — clients + quotes.client_id + quotes.comment', () => {
   })
 })
 
+describe('migration v5 — company_settings + quotes.pdf_path', () => {
+  test('creates company_settings table with key/value columns', () => {
+    const db = createDb(':memory:')
+    const cols = db.prepare("PRAGMA table_info(company_settings)").all().map(c => c.name)
+    expect(cols).toEqual(expect.arrayContaining(['key', 'value']))
+  })
+
+  test('adds quotes.pdf_path column', () => {
+    const db = createDb(':memory:')
+    const cols = db.prepare("PRAGMA table_info(quotes)").all().map(c => c.name)
+    expect(cols).toContain('pdf_path')
+  })
+
+  test('seeds default company_settings rows', () => {
+    const db = createDb(':memory:')
+    const rows = db.prepare('SELECT key, value FROM company_settings').all()
+    const obj = {}
+    rows.forEach(r => obj[r.key] = r.value)
+    expect(obj.name).toBe('Сити Принт')
+    expect(obj.kp_validity_days).toBe('7')
+    expect(obj.signature).toMatch(/Сити Принт/)
+  })
+})
+
 describe('migration v4 — quotes.total + backfill', () => {
   test('adds total column to quotes', () => {
     const db = createDb(':memory:')
