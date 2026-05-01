@@ -37,7 +37,8 @@ install -m 0644 scripts/deploy/uv-calc-backup.service /etc/systemd/system/
 install -m 0644 scripts/deploy/uv-calc-backup.timer   /etc/systemd/system/
 systemctl daemon-reload
 
-# 5. nginx vhost (TLS will be added by certbot)
+# 5. nginx — http-scope limit zone + vhost (TLS will be added by certbot)
+install -m 0644 scripts/deploy/limit_zones.conf /etc/nginx/conf.d/uv-calc-limits.conf
 install -m 0644 scripts/deploy/nginx.conf /etc/nginx/sites-available/calc.citi-print.ru
 ln -sf /etc/nginx/sites-available/calc.citi-print.ru /etc/nginx/sites-enabled/calc.citi-print.ru
 nginx -t

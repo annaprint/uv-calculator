@@ -3,5 +3,8 @@ data/uv.db
 data/sessions.db
 data/pdfs/
 data/uploads/
+.env
+.env.*
+!.env.example
 .superpowers/
 .DS_Store
