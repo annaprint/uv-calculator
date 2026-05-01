@@ -13,6 +13,7 @@ function showSection(name, el) {
   if (name === 'quotes') loadQuotes()
   if (name === 'clients') loadClients()
   if (name === 'users') loadUsers()
+  if (name === 'settings') loadSettings()
 }
 
 function showToast(msg = 'Сохранено ✓') {
@@ -328,6 +329,47 @@ async function deleteQuote(id) {
 function esc(str) {
   return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
 }
+
+// ── Company settings ──────────────────────────────────────────────────────
+async function loadSettings() {
+  try {
+    const s = await api('GET', '/api/company-settings')
+    const form = document.getElementById('settings-form')
+    for (const [k, v] of Object.entries(s)) {
+      const f = form.querySelector(`[name="${k}"]`)
+      if (f) f.value = v ?? ''
+    }
+    document.getElementById('logo-status').textContent =
+      s.logo_path ? `Текущий логотип: ${s.logo_path}` : 'Логотип ещё не загружен.'
+  } catch (e) { showToast('Ошибка: ' + e.message) }
+}
+
+document.addEventListener('submit', async e => {
+  if (e.target.id !== 'settings-form') return
+  e.preventDefault()
+  const fd = new FormData(e.target)
+  const obj = {}
+  fd.forEach((v, k) => { obj[k] = v })
+  try {
+    await api('PUT', '/api/company-settings', obj)
+    showToast('Настройки сохранены ✓')
+  } catch (err) { showToast('Ошибка: ' + err.message) }
+})
+
+document.addEventListener('click', async e => {
+  if (e.target.id !== 'logo-upload-btn') return
+  const input = document.getElementById('logo-upload-input')
+  const file = input.files[0]
+  if (!file) { alert('Выберите файл'); return }
+  const fd = new FormData()
+  fd.append('logo', file)
+  try {
+    const res = await fetch('/api/company-settings/logo', { method: 'POST', body: fd })
+    if (!res.ok) throw new Error(await res.text())
+    showToast('Логотип загружен ✓')
+    loadSettings()
+  } catch (err) { showToast('Ошибка: ' + err.message) }
+})
 
 // ── Clients ───────────────────────────────────────────────────────────────
 let clients = []
