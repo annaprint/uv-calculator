@@ -1,0 +1,22 @@
+[Unit]
+Description=UV Calculator (citi-print)
+After=network.target
+
+[Service]
+Type=simple
+User=uvcalc
+WorkingDirectory=/opt/uv-calc
+EnvironmentFile=/opt/uv-calc/.env
+ExecStart=/usr/bin/node /opt/uv-calc/server.js
+Restart=on-failure
+RestartSec=2
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/uv-calc/data
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

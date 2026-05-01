@@ -1,0 +1,16 @@
+[Unit]
+Description=UV Calculator nightly DB backup
+
+[Service]
+Type=oneshot
+User=uvcalc
+WorkingDirectory=/opt/uv-calc
+EnvironmentFile=/opt/uv-calc/.env
+ExecStart=/usr/bin/node /opt/uv-calc/backup.js
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/uv-calc/data
+PrivateTmp=true
