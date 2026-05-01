@@ -11,6 +11,7 @@ function showSection(name, el) {
   if (name === 'souvenir') loadSouvenir()
   if (name === 'catalog') loadCatalog()
   if (name === 'quotes') loadQuotes()
+  if (name === 'clients') loadClients()
   if (name === 'users') loadUsers()
 }
 
@@ -265,6 +266,69 @@ async function deleteQuote(id) {
 // ── Utility ───────────────────────────────────────────────────────────────
 function esc(str) {
   return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+}
+
+// ── Clients ───────────────────────────────────────────────────────────────
+let clients = []
+
+async function loadClients() {
+  try {
+    const q = document.getElementById('clients-search')?.value || ''
+    clients = await api('GET', '/api/clients' + (q ? `?q=${encodeURIComponent(q)}` : ''))
+    renderClients()
+  } catch (e) { showToast('Ошибка: ' + e.message) }
+}
+
+function renderClients() {
+  document.getElementById('clients-body').innerHTML = clients.map(c => `
+    <tr>
+      <td>${esc(c.name)}</td>
+      <td>${esc(c.contact_person || '')}</td>
+      <td>${esc(c.phone || '')}</td>
+      <td>${esc(c.email || '')}</td>
+      <td>
+        <button onclick="editClientField(${c.id}, 'contact_person', 'Контактное лицо')">Контакт</button>
+        <button onclick="editClientField(${c.id}, 'phone', 'Телефон')">Телефон</button>
+        <button onclick="editClientField(${c.id}, 'email', 'Email')">Email</button>
+        <button class="btn-danger" onclick="deleteClient(${c.id})">✕</button>
+      </td>
+    </tr>`).join('')
+}
+
+async function createClientPrompt() {
+  const name = prompt('Название клиента:')
+  if (!name || !name.trim()) return
+  const contact_person = prompt('Контактное лицо (необязательно):') || null
+  const phone = prompt('Телефон (необязательно):') || null
+  const email = prompt('Email (необязательно):') || null
+  try {
+    await api('POST', '/api/clients', { name: name.trim(), contact_person, phone, email })
+    showToast('Клиент добавлен ✓')
+    loadClients()
+  } catch (e) { showToast('Ошибка: ' + e.message) }
+}
+
+async function editClientField(id, field, label) {
+  const c = clients.find(x => x.id === id)
+  if (!c) return
+  const value = prompt(`${label}:`, c[field] || '')
+  if (value === null) return
+  try {
+    await api('PUT', '/api/clients/' + id, { [field]: value })
+    showToast('Сохранено ✓')
+    loadClients()
+  } catch (e) { showToast('Ошибка: ' + e.message) }
+}
+
+async function deleteClient(id) {
+  const c = clients.find(x => x.id === id)
+  if (!c) return
+  if (!confirm(`Удалить клиента "${c.name}"?`)) return
+  try {
+    await api('DELETE', '/api/clients/' + id)
+    showToast('Удалено ✓')
+    loadClients()
+  } catch (e) { showToast('Ошибка: ' + e.message) }
 }
 
 // ── Users (admin) ─────────────────────────────────────────────────────────

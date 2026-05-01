@@ -55,6 +55,7 @@
   <div class="nav-item" onclick="showSection('souvenir', this)">🎁 Сувенирная печать</div>
   <div class="nav-item" onclick="showSection('catalog', this)">📦 Каталог товаров</div>
   <div class="nav-item" onclick="showSection('quotes', this)">📋 Сохранённые КП</div>
+  <div class="nav-item" onclick="showSection('clients', this)">👤 Клиенты</div>
   <div class="nav-item" onclick="showSection('users', this)">👥 Пользователи</div>
   <div style="position:absolute;bottom:16px;left:0;right:0;padding:0 20px;">
     <a href="/" style="color:#94a3b8;font-size:12px;text-decoration:none;">← Калькулятор</a>
@@ -138,6 +139,20 @@
     <table>
       <thead><tr><th>Дата</th><th>Тип</th><th>Итого</th><th>Текст КП</th><th></th></tr></thead>
       <tbody id="quotes-body"></tbody>
+    </table>
+  </div>
+
+  <!-- Clients -->
+  <div id="sec-clients" class="section">
+    <h2>Клиенты</h2>
+    <p class="hint">Менеджеры могут создавать и редактировать. Удалять — только админ.</p>
+    <div class="add-row">
+      <input type="text" id="clients-search" placeholder="Поиск по названию (с заглавной)..." oninput="loadClients()" style="width:280px;">
+      <button class="btn btn-primary" onclick="createClientPrompt()">+ Добавить клиента</button>
+    </div>
+    <table id="clients-table">
+      <thead><tr><th>Название</th><th>Контакт</th><th>Телефон</th><th>Email</th><th></th></tr></thead>
+      <tbody id="clients-body"></tbody>
     </table>
   </div>
 
