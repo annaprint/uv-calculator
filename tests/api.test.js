@@ -175,4 +175,33 @@ describe('quotes API', () => {
     expect(res.body).toHaveLength(1)
     expect(res.body[0].kp_text).toBe('КП тест')
   })
+
+  test('POST /api/quotes saves user_id, client_id, comment, total', async () => {
+    const c = await agent.post('/api/clients').send({ name: 'Acme' })
+    const r = await agent.post('/api/quotes').send({
+      type: 'sheet',
+      params: { w: 1 },
+      result: { total: 5000 },
+      kp_text: 'KP',
+      client_id: c.body.id,
+      comment: 'pls'
+    })
+    expect(r.status).toBe(201)
+    expect(r.body.client_id).toBe(c.body.id)
+    expect(r.body.comment).toBe('pls')
+    expect(r.body.total).toBe(5000)
+    expect(r.body.user_id).toBeDefined()
+  })
+
+  test('POST /api/quotes without client_id stores NULL client', async () => {
+    const r = await agent.post('/api/quotes').send({
+      type: 'sheet',
+      params: {},
+      result: { total: 100 },
+      kp_text: 'k'
+    })
+    expect(r.status).toBe(201)
+    expect(r.body.client_id).toBeNull()
+    expect(r.body.total).toBe(100)
+  })
 })

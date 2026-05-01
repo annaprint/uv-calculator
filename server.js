@@ -347,11 +347,12 @@ app.get('/api/quotes', requireAuth, (req, res) => {
 })
 
 app.post('/api/quotes', requireAuth, (req, res) => {
-  const { type, params, result, kp_text } = req.body
+  const { type, params, result, kp_text, client_id = null, comment = null } = req.body || {}
   if (!type || !params || !result || !kp_text) return res.status(400).json({ error: 'type, params, result, kp_text required' })
+  const total = (result && typeof result.total === 'number') ? result.total : null
   const info = db.prepare(
-    'INSERT INTO quotes (type, params, result, kp_text) VALUES (?,?,?,?)'
-  ).run(type, JSON.stringify(params), JSON.stringify(result), kp_text)
+    'INSERT INTO quotes (type,params,result,kp_text,user_id,client_id,comment,total) VALUES (?,?,?,?,?,?,?,?)'
+  ).run(type, JSON.stringify(params), JSON.stringify(result), kp_text, req.user.id, client_id, comment, total)
   res.status(201).json(db.prepare('SELECT * FROM quotes WHERE id=?').get(info.lastInsertRowid))
 })
 
