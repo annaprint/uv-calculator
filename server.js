@@ -297,6 +297,50 @@ app.post('/api/calc/souvenir', requireAuth, (req, res) => {
   }
 })
 
+// ── Clients ───────────────────────────────────────────────────────────────
+app.get('/api/clients', requireAuth, (req, res) => {
+  const q = req.query.q ? `%${req.query.q}%` : '%'
+  res.json(db.prepare('SELECT * FROM clients WHERE name LIKE ? ORDER BY name').all(q))
+})
+
+app.get('/api/clients/:id', requireAuth, (req, res) => {
+  const c = db.prepare('SELECT * FROM clients WHERE id=?').get(req.params.id)
+  if (!c) return res.status(404).json({ error: 'Not found' })
+  const quotes = db.prepare(
+    'SELECT id, created_at, type FROM quotes WHERE client_id=? ORDER BY created_at DESC'
+  ).all(req.params.id)
+  res.json({ ...c, quotes })
+})
+
+app.post('/api/clients', requireAuth, (req, res) => {
+  const { name, contact_person = null, phone = null, email = null, notes = null } = req.body || {}
+  if (!name) return res.status(400).json({ error: 'name required' })
+  const info = db.prepare(
+    'INSERT INTO clients (name,contact_person,phone,email,notes) VALUES (?,?,?,?,?)'
+  ).run(name, contact_person, phone, email, notes)
+  res.status(201).json(db.prepare('SELECT * FROM clients WHERE id=?').get(info.lastInsertRowid))
+})
+
+app.put('/api/clients/:id', requireAuth, (req, res) => {
+  const { name = null, contact_person = null, phone = null, email = null, notes = null } = req.body || {}
+  const info = db.prepare(`UPDATE clients SET
+    name=COALESCE(?,name),
+    contact_person=COALESCE(?,contact_person),
+    phone=COALESCE(?,phone),
+    email=COALESCE(?,email),
+    notes=COALESCE(?,notes),
+    updated_at=datetime('now')
+    WHERE id=?`).run(name, contact_person, phone, email, notes, req.params.id)
+  if (info.changes === 0) return res.status(404).json({ error: 'Not found' })
+  const c = db.prepare('SELECT * FROM clients WHERE id=?').get(req.params.id)
+  res.json(c)
+})
+
+app.delete('/api/clients/:id', requireAdmin, (req, res) => {
+  db.prepare('DELETE FROM clients WHERE id=?').run(req.params.id)
+  res.json({ ok: true })
+})
+
 // ── Quotes ────────────────────────────────────────────────────────────────
 app.get('/api/quotes', requireAuth, (req, res) => {
   res.json(db.prepare('SELECT * FROM quotes ORDER BY created_at DESC').all())
