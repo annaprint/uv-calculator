@@ -53,6 +53,17 @@
     .error-box { display: none; margin-top: 12px; background: #fef2f2; border: 1px solid #fca5a5; border-radius: 7px; padding: 12px; font-size: 13px; color: #dc2626; }
     .error-box.show { display: block; }
     .search-input { margin-bottom: 8px; }
+    dialog::backdrop { background: rgba(15,23,42,0.55); }
+    dialog#save-quote-modal { border: none; border-radius: 10px; padding: 24px; max-width: 480px; width: calc(100% - 32px); box-shadow: 0 20px 50px rgba(0,0,0,.18); }
+    dialog#save-quote-modal h3 { font-size: 16px; margin-bottom: 16px; }
+    dialog#save-quote-modal input[type=text], dialog#save-quote-modal textarea { width: 100%; padding: 9px 12px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 14px; color: #1e293b; font-family: inherit; }
+    dialog#save-quote-modal label { display: block; font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: .4px; margin: 12px 0 6px; }
+    dialog#save-quote-modal .modal-actions { display: flex; gap: 10px; margin-top: 18px; }
+    dialog#save-quote-modal button { flex: 1; padding: 10px; border-radius: 7px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; }
+    dialog#save-quote-modal button[value="save"] { background: #3b82f6; color: white; }
+    dialog#save-quote-modal button[value="save"]:hover { background: #2563eb; }
+    dialog#save-quote-modal button[value="cancel"] { background: #f1f5f9; color: #64748b; }
+    dialog#save-quote-modal button[value="cancel"]:hover { background: #e2e8f0; }
   </style>
 </head>
 <body>
@@ -214,6 +225,21 @@
 
   </div>
 </div>
+
+<dialog id="save-quote-modal">
+  <form method="dialog">
+    <h3>Сохранить коммерческое предложение</h3>
+    <label>Клиент (введите название или выберите из списка)</label>
+    <input type="text" id="client-search" list="clients-list" autocomplete="off" placeholder="Например: ООО Ромашка">
+    <datalist id="clients-list"></datalist>
+    <label>Комментарий (необязательно)</label>
+    <textarea id="quote-comment" rows="3" placeholder="Внутренняя пометка к КП"></textarea>
+    <div class="modal-actions">
+      <button value="cancel">Отмена</button>
+      <button value="save">Сохранить КП</button>
+    </div>
+  </form>
+</dialog>
 
 <script src="/js/header.js"></script>
 <script src="/js/calc-ui.js"></script>

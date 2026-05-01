@@ -186,17 +186,12 @@ function showSouvResult(r, p) {
 }
 
 // ── KP generation ─────────────────────────────────────────────────────────
-async function generateKP(type) {
-  const data = type === 'sheet' ? lastSheetResult : lastSouvResult
-  if (!data) return
-
+function buildKPText(type, data) {
   const d = new Date().toLocaleDateString('ru-RU')
-  let text
-
   if (type === 'sheet') {
     const { params: p, result: r } = data
     const mat = p.clientMaterial ? 'Материал заказчика' : (sheetMaterials.find(m => m.id === p.materialId)?.name || '')
-    text = `КП на УФ-печать (листовая продукция)
+    return `КП на УФ-печать (листовая продукция)
 Дата: ${d}
 Материал: ${mat}
 Размер: ${p.widthMm}×${p.heightMm} мм
@@ -207,16 +202,69 @@ ${p.uvVarnish ? 'Опция: УФ-лак (+30%)\n' : ''}${p.reliefLayers > 0 ? `
 Итого: ${fmt(r.total)} (${fmt(r.pricePerUnit)}/шт.)`
   } else {
     const { params: p, result: r } = data
-    text = `КП на УФ-печать (сувенирная продукция)
+    return `КП на УФ-печать (сувенирная продукция)
 Дата: ${d}
 Товар: ${p.productName}
 Количество: ${p.qty} шт.
 ${p.uvVarnish ? 'Опция: УФ-лак (+30%)\n' : ''}${p.reliefLayers > 0 ? `Опция: рельефный белый (${p.reliefLayers} сл.)\n` : ''}${p.urgent ? 'Срочность: 1–2 дня (+30%)\n' : ''}
 Итого: ${fmt(r.total)} (${fmt(r.pricePerUnit)}/шт.)`
   }
+}
 
-  await api('POST', '/api/quotes', { type: type === 'sheet' ? 'sheet' : 'souvenir', params: data.params, result: data.result, kp_text: text })
-  alert('КП сохранено!\n\n' + text)
+async function generateKP(type) {
+  const data = type === 'sheet' ? lastSheetResult : lastSouvResult
+  if (!data) return
+  const kp_text = buildKPText(type, data)
+  openSaveQuoteModal({
+    type: type === 'sheet' ? 'sheet' : 'souvenir',
+    params: data.params,
+    result: data.result,
+    kp_text
+  })
+}
+
+function openSaveQuoteModal(payload) {
+  const dlg = document.getElementById('save-quote-modal')
+  const search = document.getElementById('client-search')
+  const list = document.getElementById('clients-list')
+  const commentEl = document.getElementById('quote-comment')
+  search.value = ''
+  commentEl.value = ''
+  list.innerHTML = ''
+
+  const refreshClients = async () => {
+    try {
+      const cs = await api('GET', '/api/clients?q=' + encodeURIComponent(search.value || ''))
+      list.innerHTML = cs.slice(0, 50).map(c => `<option value="${esc(c.name)}" data-id="${c.id}"></option>`).join('')
+    } catch (_) { /* ignore */ }
+  }
+  search.oninput = refreshClients
+  refreshClients()
+
+  const onClose = async () => {
+    dlg.removeEventListener('close', onClose)
+    if (dlg.returnValue !== 'save') return
+    const name = (search.value || '').trim()
+    let client_id = null
+    try {
+      if (name) {
+        const matches = await api('GET', '/api/clients?q=' + encodeURIComponent(name))
+        const exact = matches.find(c => c.name === name)
+        if (exact) client_id = exact.id
+        else {
+          const created = await api('POST', '/api/clients', { name })
+          client_id = created.id
+        }
+      }
+      const comment = commentEl.value.trim() || null
+      const saved = await api('POST', '/api/quotes', { ...payload, client_id, comment })
+      alert('КП сохранено (#' + saved.id + ')\n\n' + payload.kp_text)
+    } catch (e) {
+      alert('Ошибка сохранения: ' + e.message)
+    }
+  }
+  dlg.addEventListener('close', onClose)
+  dlg.showModal()
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
