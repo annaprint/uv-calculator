@@ -368,7 +368,10 @@ const logoUpload = multer({
     destination: UPLOADS_DIR,
     filename: (_req, _file, cb) => cb(null, 'logo.png')
   }),
-  limits: { fileSize: 1024 * 1024 }
+  limits: { fileSize: 1024 * 1024, files: 1 },
+  fileFilter: (_req, file, cb) => {
+    cb(null, /^image\/(png|jpeg|webp)$/.test(file.mimetype))
+  }
 })
 
 function readSettings() {

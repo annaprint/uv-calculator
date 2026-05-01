@@ -48,9 +48,18 @@ function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase()
 }
 
+// Pre-computed bcrypt hash of an unguessable string. Used to make the
+// "user not found / inactive" path spend the same CPU as a real verify,
+// so login response times don't leak email enumeration.
+const DUMMY_HASH = bcrypt.hashSync('dummy-timing-baseline-' + Math.random(), SALT_ROUNDS)
+
 async function loginUser(db, email, password) {
   const user = db.prepare('SELECT * FROM users WHERE email=?').get(normalizeEmail(email))
-  if (!user || !user.is_active) return null
+  if (!user || !user.is_active) {
+    // Spend the same CPU as the real path to avoid timing-based enumeration.
+    await verifyPassword(password, DUMMY_HASH)
+    return null
+  }
   const ok = await verifyPassword(password, user.password_hash)
   return ok ? user : null
 }
