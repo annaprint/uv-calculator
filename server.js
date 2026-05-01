@@ -300,7 +300,7 @@ app.post('/api/calc/souvenir', requireAuth, (req, res) => {
 // ── Clients ───────────────────────────────────────────────────────────────
 app.get('/api/clients', requireAuth, (req, res) => {
   const q = req.query.q ? `%${req.query.q}%` : '%'
-  res.json(db.prepare('SELECT * FROM clients WHERE name LIKE ? ORDER BY name').all(q))
+  res.json(db.prepare('SELECT * FROM clients WHERE lower_ru(name) LIKE lower_ru(?) ORDER BY name').all(q))
 })
 
 app.get('/api/clients/:id', requireAuth, (req, res) => {

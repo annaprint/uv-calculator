@@ -121,6 +121,9 @@ function createDb(dbPath) {
   }
   const db = new Database(resolvedPath)
   db.pragma('foreign_keys = ON')
+  // SQLite's built-in LOWER() and LIKE only handle ASCII case-folding.
+  // lower_ru uses JS String.toLowerCase() which folds Unicode (e.g. cyrillic).
+  db.function('lower_ru', { deterministic: true }, s => String(s ?? '').toLowerCase())
   applyMigrations(db)
   return db
 }

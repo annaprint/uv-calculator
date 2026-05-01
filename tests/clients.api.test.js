@@ -31,10 +31,10 @@ describe('clients API', () => {
     expect(r.status).toBe(400)
   })
 
-  test('GET /api/clients?q= filters by name substring', async () => {
+  test('GET /api/clients?q= filters by name substring (case-insensitive cyrillic)', async () => {
     await mgr.post('/api/clients').send({ name: 'ООО Ромашка' })
     await mgr.post('/api/clients').send({ name: 'ИП Иванов' })
-    const r = await mgr.get('/api/clients?q=' + encodeURIComponent('Ром'))
+    const r = await mgr.get('/api/clients?q=' + encodeURIComponent('ром'))
     expect(r.status).toBe(200)
     expect(r.body).toHaveLength(1)
     expect(r.body[0].name).toBe('ООО Ромашка')
