@@ -428,6 +428,8 @@ app.delete('/api/clients/:id', requireAdmin, (req, res) => {
 app.get('/api/quotes', requireAuth, (req, res) => {
   const where = []
   const params = {}
+  // Managers see only their own quotes; admins see everything.
+  if (!req.user.is_admin) { where.push('q.user_id = @me'); params.me = req.user.id }
   if (req.query.q) { where.push('(q.kp_text LIKE @q OR q.params LIKE @q OR q.comment LIKE @q)'); params.q = `%${req.query.q}%` }
   if (req.query.type) { where.push('q.type = @type'); params.type = req.query.type }
   if (req.query.date_from) { where.push("date(q.created_at) >= date(@df)"); params.df = req.query.date_from }
@@ -469,6 +471,9 @@ const PDFS_DIR = path.join(__dirname, 'data', 'pdfs')
 app.get('/api/quotes/:id/pdf', requireAuth, async (req, res) => {
   const q = db.prepare('SELECT * FROM quotes WHERE id=?').get(req.params.id)
   if (!q) return res.status(404).json({ error: 'Not found' })
+  if (!req.user.is_admin && q.user_id !== req.user.id) {
+    return res.status(403).json({ error: 'Forbidden' })
+  }
   if (q.pdf_path && fs.existsSync(q.pdf_path)) {
     return res.type('pdf').sendFile(path.resolve(q.pdf_path))
   }
