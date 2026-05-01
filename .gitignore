@@ -1,5 +1,7 @@
 node_modules/
 data/uv.db
 data/sessions.db
+data/pdfs/
+data/uploads/
 .superpowers/
 .DS_Store

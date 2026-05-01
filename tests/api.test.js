@@ -205,3 +205,40 @@ describe('quotes API', () => {
     expect(r.body.total).toBe(100)
   })
 })
+
+describe('GET /api/quotes/:id/pdf', () => {
+  function collectBody(res, cb) {
+    const chunks = []
+    res.on('data', c => chunks.push(c))
+    res.on('end', () => cb(null, Buffer.concat(chunks)))
+  }
+
+  test('returns PDF and persists pdf_path', async () => {
+    const c = await agent.post('/api/quotes').send({
+      type: 'sheet', params: { w: 1 }, result: { total: 5000 }, kp_text: 'тест КП'
+    })
+    const r = await agent.get(`/api/quotes/${c.body.id}/pdf`).buffer().parse(collectBody)
+    expect(r.status).toBe(200)
+    expect(r.headers['content-type']).toMatch(/pdf/)
+    expect(r.body.slice(0, 5).toString()).toBe('%PDF-')
+
+    const stored = db.prepare('SELECT pdf_path FROM quotes WHERE id=?').get(c.body.id)
+    expect(stored.pdf_path).toMatch(/quote-\d+\.pdf$/)
+  })
+
+  test('returns 404 for unknown quote id', async () => {
+    const r = await agent.get('/api/quotes/99999/pdf')
+    expect(r.status).toBe(404)
+  })
+
+  test('serves cached file on subsequent requests', async () => {
+    const c = await agent.post('/api/quotes').send({
+      type: 'souvenir', params: {}, result: { total: 2000 }, kp_text: 'k'
+    })
+    const r1 = await agent.get(`/api/quotes/${c.body.id}/pdf`).buffer().parse(collectBody)
+    expect(r1.status).toBe(200)
+    const r2 = await agent.get(`/api/quotes/${c.body.id}/pdf`).buffer().parse(collectBody)
+    expect(r2.status).toBe(200)
+    expect(r2.body.slice(0, 5).toString()).toBe('%PDF-')
+  })
+})

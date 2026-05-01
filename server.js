@@ -8,6 +8,7 @@ const rateLimit = require('express-rate-limit')
 const { createDb } = require('./db')
 const { calcSheet, calcSouvenir } = require('./calc')
 const { hashPassword, verifyPassword, normalizeEmail, buildSessionMiddleware, loginUser, loadUser, requireAuth, requireAdmin } = require('./auth')
+const { generateQuotePdf } = require('./pdf')
 
 const app = express()
 const db = createDb()
@@ -418,6 +419,29 @@ app.post('/api/quotes', requireAuth, (req, res) => {
     'INSERT INTO quotes (type,params,result,kp_text,user_id,client_id,comment,total) VALUES (?,?,?,?,?,?,?,?)'
   ).run(type, JSON.stringify(params), JSON.stringify(result), kp_text, req.user.id, client_id, comment, total)
   res.status(201).json(db.prepare('SELECT * FROM quotes WHERE id=?').get(info.lastInsertRowid))
+})
+
+const PDFS_DIR = path.join(__dirname, 'data', 'pdfs')
+
+app.get('/api/quotes/:id/pdf', requireAuth, async (req, res) => {
+  const q = db.prepare('SELECT * FROM quotes WHERE id=?').get(req.params.id)
+  if (!q) return res.status(404).json({ error: 'Not found' })
+  if (q.pdf_path && fs.existsSync(q.pdf_path)) {
+    return res.type('pdf').sendFile(path.resolve(q.pdf_path))
+  }
+  try {
+    const client = q.client_id ? db.prepare('SELECT * FROM clients WHERE id=?').get(q.client_id) : null
+    const user = q.user_id ? db.prepare('SELECT id,email,full_name FROM users WHERE id=?').get(q.user_id) : {}
+    const settings = readSettings()
+    const buf = await generateQuotePdf(q, client, settings, user || {})
+    fs.mkdirSync(PDFS_DIR, { recursive: true })
+    const filePath = path.join(PDFS_DIR, `quote-${q.id}.pdf`)
+    fs.writeFileSync(filePath, buf)
+    db.prepare('UPDATE quotes SET pdf_path=? WHERE id=?').run(filePath, q.id)
+    res.type('pdf').send(buf)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
 })
 
 app.delete('/api/quotes/:id', requireAuth, (req, res) => {
