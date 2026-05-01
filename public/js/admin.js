@@ -14,6 +14,7 @@ function showSection(name, el) {
   if (name === 'clients') loadClients()
   if (name === 'users') loadUsers()
   if (name === 'settings') loadSettings()
+  if (name === 'backups') loadBackups()
 }
 
 function showToast(msg = 'Сохранено ✓') {
@@ -328,6 +329,35 @@ async function deleteQuote(id) {
 // ── Utility ───────────────────────────────────────────────────────────────
 function esc(str) {
   return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+}
+
+// ── Backups ───────────────────────────────────────────────────────────────
+async function loadBackups() {
+  try {
+    const list = await api('GET', '/api/backups')
+    const tbody = document.getElementById('backups-body')
+    tbody.innerHTML = list.map(b => `
+      <tr>
+        <td style="font-size:12px;">${esc(b.filename)}</td>
+        <td>${b.manual ? '<span style="color:#3b82f6;">ручной</span>' : '<span style="color:#64748b;">авто</span>'}</td>
+        <td>${(b.size / 1024).toFixed(1)} КБ</td>
+        <td style="font-size:12px;color:#64748b;">${b.mtime.replace('T', ' ').slice(0, 16)}</td>
+        <td><a href="/api/backups/${encodeURIComponent(b.filename)}" download style="font-size:12px;color:#3b82f6;">Скачать</a></td>
+      </tr>`).join('')
+    document.getElementById('backup-status').textContent =
+      list.length ? `Хранится: ${list.length} файлов` : 'Бэкапов пока нет.'
+  } catch (e) { showToast('Ошибка: ' + e.message) }
+}
+
+async function createBackupNow() {
+  try {
+    const res = await fetch('/api/backups', { method: 'POST' })
+    if (!res.ok) throw new Error(await res.text())
+    const b = await res.json()
+    showToast('Бэкап создан ✓')
+    window.open('/api/backups/' + encodeURIComponent(b.filename), '_blank')
+    loadBackups()
+  } catch (e) { showToast('Ошибка: ' + e.message) }
 }
 
 // ── Company settings ──────────────────────────────────────────────────────

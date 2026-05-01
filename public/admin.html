@@ -58,6 +58,7 @@
   <div class="nav-item" onclick="showSection('clients', this)">👤 Клиенты</div>
   <div class="nav-item" onclick="showSection('users', this)">👥 Пользователи</div>
   <div class="nav-item" onclick="showSection('settings', this)">⚙️ Настройки компании</div>
+  <div class="nav-item" onclick="showSection('backups', this)">💾 Бэкап БД</div>
   <div style="position:absolute;bottom:16px;left:0;right:0;padding:0 20px;">
     <a href="/" style="color:#94a3b8;font-size:12px;text-decoration:none;">← Калькулятор</a>
   </div>
@@ -240,6 +241,20 @@
       <button class="btn btn-primary" id="logo-upload-btn">Загрузить логотип</button>
     </div>
     <div id="logo-status" class="hint" style="margin-top:8px;"></div>
+  </div>
+
+  <!-- Backups -->
+  <div id="sec-backups" class="section">
+    <h2>Бэкап базы данных</h2>
+    <p class="hint">Автоматический бэкап создаётся ежедневно в 03:00 (через systemd-timer на сервере). Хранятся 30 дней. Ручной бэкап — кнопкой ниже.</p>
+    <div class="add-row">
+      <button class="btn btn-primary" onclick="createBackupNow()">💾 Сделать бэкап сейчас</button>
+      <span id="backup-status" style="font-size:12px;color:#64748b;"></span>
+    </div>
+    <table>
+      <thead><tr><th>Файл</th><th>Тип</th><th>Размер</th><th>Создан</th><th></th></tr></thead>
+      <tbody id="backups-body"></tbody>
+    </table>
   </div>
 
   <!-- Users -->
