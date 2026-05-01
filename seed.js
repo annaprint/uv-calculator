@@ -1,16 +1,17 @@
 // seed.js
 const { createDb } = require('./db')
-const { hashPassword } = require('./auth')
+const { hashPassword, normalizeEmail } = require('./auth')
 
 async function ensureFirstAdmin(db, opts) {
   const { email, password, fullName } = opts || {}
   if (!email || !password) throw new Error('ADMIN_EMAIL and ADMIN_PASS are required')
-  const existing = db.prepare('SELECT id FROM users WHERE email=?').get(email)
+  const normalized = normalizeEmail(email)
+  const existing = db.prepare('SELECT id FROM users WHERE email=?').get(normalized)
   if (existing) return
   const hash = await hashPassword(password)
   db.prepare(
     'INSERT INTO users (email, password_hash, full_name, is_admin, is_active) VALUES (?,?,?,1,1)'
-  ).run(email, hash, fullName || email)
+  ).run(normalized, hash, fullName || normalized)
 }
 
 function seedPrices(db) {

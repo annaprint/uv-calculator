@@ -6,7 +6,7 @@ const XLSX = require('xlsx')
 const rateLimit = require('express-rate-limit')
 const { createDb } = require('./db')
 const { calcSheet, calcSouvenir } = require('./calc')
-const { hashPassword, verifyPassword, buildSessionMiddleware, loginUser, loadUser, requireAuth, requireAdmin } = require('./auth')
+const { hashPassword, verifyPassword, normalizeEmail, buildSessionMiddleware, loginUser, loadUser, requireAuth, requireAdmin } = require('./auth')
 
 const app = express()
 const db = createDb()
@@ -96,12 +96,13 @@ app.get('/api/users', requireAdmin, (req, res) => {
 app.post('/api/users', requireAdmin, async (req, res) => {
   const { email, password, full_name, is_admin = 0 } = req.body || {}
   if (!email || !password || !full_name) return res.status(400).json({ error: 'email, password, full_name required' })
-  const dup = db.prepare('SELECT id FROM users WHERE email=?').get(email)
+  const normalized = normalizeEmail(email)
+  const dup = db.prepare('SELECT id FROM users WHERE email=?').get(normalized)
   if (dup) return res.status(409).json({ error: 'Email already exists' })
   const hash = await hashPassword(password)
   const info = db.prepare(
     'INSERT INTO users (email,password_hash,full_name,is_admin,is_active) VALUES (?,?,?,?,1)'
-  ).run(email, hash, full_name, is_admin ? 1 : 0)
+  ).run(normalized, hash, full_name, is_admin ? 1 : 0)
   res.status(201).json(db.prepare('SELECT id,email,full_name,is_admin,is_active FROM users WHERE id=?').get(info.lastInsertRowid))
 })
 

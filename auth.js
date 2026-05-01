@@ -33,8 +33,12 @@ function buildSessionMiddleware({ secret, dbPath, cookieSecure, isTest }) {
   })
 }
 
+function normalizeEmail(email) {
+  return String(email || '').trim().toLowerCase()
+}
+
 async function loginUser(db, email, password) {
-  const user = db.prepare('SELECT * FROM users WHERE email=?').get(email)
+  const user = db.prepare('SELECT * FROM users WHERE email=?').get(normalizeEmail(email))
   if (!user || !user.is_active) return null
   const ok = await verifyPassword(password, user.password_hash)
   return ok ? user : null
@@ -70,4 +74,4 @@ function requireAdmin(req, res, next) {
   next()
 }
 
-module.exports = { hashPassword, verifyPassword, buildSessionMiddleware, loginUser, loadUser, requireAuth, requireAdmin }
+module.exports = { hashPassword, verifyPassword, normalizeEmail, buildSessionMiddleware, loginUser, loadUser, requireAuth, requireAdmin }

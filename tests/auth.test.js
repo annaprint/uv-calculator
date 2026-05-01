@@ -92,6 +92,33 @@ describe('POST /api/login', () => {
   })
 })
 
+describe('email is case-insensitive on login', () => {
+  let app, db, agent
+  beforeEach(async () => {
+    process.env.NODE_ENV = 'test'
+    process.env.DISABLE_RATE_LIMIT = 'true'
+    db = makeTestDb()
+    const { hashPassword } = require('../auth')
+    db.prepare('INSERT INTO users (email,password_hash,full_name,is_admin,is_active) VALUES (?,?,?,1,1)')
+      .run('user@b.c', await hashPassword('p'), 'Mixed')
+    jest.resetModules()
+    jest.doMock('../db', () => ({ createDb: () => db }))
+    app = require('../server').app
+    agent = request.agent(app)
+  })
+
+  test('login with uppercased email succeeds', async () => {
+    const res = await agent.post('/api/login').send({ email: 'USER@B.C', password: 'p' })
+    expect(res.status).toBe(200)
+    expect(res.body.user.email).toBe('user@b.c')
+  })
+
+  test('login with surrounding whitespace succeeds', async () => {
+    const res = await agent.post('/api/login').send({ email: '  user@b.c  ', password: 'p' })
+    expect(res.status).toBe(200)
+  })
+})
+
 describe('rate-limit on /api/login', () => {
   let app, db, agent
   beforeEach(async () => {

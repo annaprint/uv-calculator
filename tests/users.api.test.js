@@ -108,4 +108,12 @@ describe('admin user management', () => {
     await loginAs(m, 'mgr@b.c', 'p')
     expect((await m.get('/api/users')).status).toBe(403)
   })
+
+  test('POST /api/users normalizes email to lowercase', async () => {
+    const res = await agent.post('/api/users').send({
+      email: '  NEW@B.c  ', password: 'pp', full_name: 'New'
+    })
+    expect(res.status).toBe(201)
+    expect(res.body.email).toBe('new@b.c')
+  })
 })
