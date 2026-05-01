@@ -15,6 +15,12 @@ const app = express()
 const db = createDb()
 const upload = multer({ storage: multer.memoryStorage() })
 
+// Behind nginx in production: trust the first hop so secure cookies and
+// req.ip work correctly with X-Forwarded-* headers.
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1)
+}
+
 app.use(express.json())
 app.use(buildSessionMiddleware({
   secret: process.env.SESSION_SECRET,

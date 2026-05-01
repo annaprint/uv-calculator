@@ -13,6 +13,9 @@ async function verifyPassword(plaintext, hash) {
 }
 
 function buildSessionMiddleware({ secret, dbPath, cookieSecure, isTest }) {
+  if (process.env.NODE_ENV === 'production' && !secret) {
+    throw new Error('SESSION_SECRET must be set in production')
+  }
   const store = isTest
     ? undefined // express-session falls back to MemoryStore (для тестов)
     : new (require('connect-sqlite3')(session))({
