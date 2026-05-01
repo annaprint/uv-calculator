@@ -109,6 +109,22 @@ describe('admin user management', () => {
     expect((await m.get('/api/users')).status).toBe(403)
   })
 
+  test('demote admin succeeds when another active admin remains', async () => {
+    const c = await agent.post('/api/users').send({
+      email: 'admin2@b.c', password: 'p', full_name: 'A2', is_admin: 1
+    })
+    const r = await agent.put(`/api/users/${c.body.id}`).send({ is_admin: 0 })
+    expect(r.status).toBe(200)
+    expect(r.body.is_admin).toBe(0)
+  })
+
+  test('cannot demote the last active admin', async () => {
+    const me = (await agent.get('/api/users/me')).body
+    const r = await agent.put(`/api/users/${me.id}`).send({ is_admin: 0 })
+    expect(r.status).toBe(400)
+    expect(r.body.error).toMatch(/last active admin/i)
+  })
+
   test('POST /api/users normalizes email to lowercase', async () => {
     const res = await agent.post('/api/users').send({
       email: '  NEW@B.c  ', password: 'pp', full_name: 'New'

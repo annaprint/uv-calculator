@@ -89,6 +89,13 @@ app.post('/api/users/me/change-password', requireAuth, async (req, res) => {
 })
 
 // ── Users (admin) ─────────────────────────────────────────────────────────
+function isLastActiveAdmin(userId) {
+  const target = db.prepare('SELECT is_admin, is_active FROM users WHERE id=?').get(userId)
+  if (!target || !target.is_admin || !target.is_active) return false
+  const count = db.prepare('SELECT COUNT(*) AS c FROM users WHERE is_admin=1 AND is_active=1').get().c
+  return count <= 1
+}
+
 app.get('/api/users', requireAdmin, (req, res) => {
   res.json(db.prepare('SELECT id,email,full_name,is_admin,is_active,created_at FROM users ORDER BY full_name').all())
 })
@@ -108,6 +115,9 @@ app.post('/api/users', requireAdmin, async (req, res) => {
 
 app.put('/api/users/:id', requireAdmin, (req, res) => {
   const { full_name, is_admin } = req.body || {}
+  if ((is_admin === 0 || is_admin === false) && isLastActiveAdmin(Number(req.params.id))) {
+    return res.status(400).json({ error: 'Cannot demote the last active admin' })
+  }
   db.prepare('UPDATE users SET full_name=COALESCE(?,full_name), is_admin=COALESCE(?,is_admin) WHERE id=?')
     .run(full_name ?? null, is_admin == null ? null : (is_admin ? 1 : 0), req.params.id)
   const u = db.prepare('SELECT id,email,full_name,is_admin,is_active FROM users WHERE id=?').get(req.params.id)
@@ -128,6 +138,9 @@ app.put('/api/users/:id/active', requireAdmin, (req, res) => {
   const { is_active } = req.body || {}
   if (Number(req.params.id) === req.user.id && !is_active) {
     return res.status(400).json({ error: 'Cannot deactivate self' })
+  }
+  if (!is_active && isLastActiveAdmin(Number(req.params.id))) {
+    return res.status(400).json({ error: 'Cannot deactivate the last active admin' })
   }
   db.prepare('UPDATE users SET is_active=? WHERE id=?').run(is_active ? 1 : 0, req.params.id)
   const u = db.prepare('SELECT id,email,full_name,is_admin,is_active FROM users WHERE id=?').get(req.params.id)
