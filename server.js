@@ -9,6 +9,7 @@ const { createDb } = require('./db')
 const { calcSheet, calcSouvenir } = require('./calc')
 const { hashPassword, verifyPassword, normalizeEmail, buildSessionMiddleware, loginUser, loadUser, requireAuth, requireAdmin } = require('./auth')
 const { generateQuotePdf } = require('./pdf')
+const { createBackup } = require('./backup')
 
 const app = express()
 const db = createDb()
@@ -297,6 +298,42 @@ app.post('/api/calc/souvenir', requireAuth, (req, res) => {
   } catch (e) {
     res.status(400).json({ error: e.message })
   }
+})
+
+// ── Backups (admin only) ──────────────────────────────────────────────────
+function backupDir() {
+  return process.env.BACKUP_DIR || path.join(__dirname, 'data', 'backups')
+}
+function backupSrcDb() {
+  return process.env.SRC_DB || path.join(__dirname, 'data', 'uv.db')
+}
+
+app.get('/api/backups', requireAdmin, (req, res) => {
+  const dir = backupDir()
+  if (!fs.existsSync(dir)) return res.json([])
+  const files = fs.readdirSync(dir).filter(f => /^uv-.*\.db$/.test(f))
+  const items = files.map(f => {
+    const stat = fs.statSync(path.join(dir, f))
+    return { filename: f, size: stat.size, mtime: stat.mtime.toISOString(), manual: f.includes('manual') }
+  }).sort((a, b) => b.mtime.localeCompare(a.mtime))
+  res.json(items)
+})
+
+app.post('/api/backups', requireAdmin, async (req, res) => {
+  try {
+    const out = await createBackup(backupSrcDb(), backupDir(), true)
+    res.status(201).json({ filename: path.basename(out) })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+app.get('/api/backups/:filename', requireAdmin, (req, res) => {
+  const safe = path.basename(req.params.filename)
+  if (!/^uv-.*\.db$/.test(safe)) return res.status(404).json({ error: 'Not found' })
+  const full = path.join(backupDir(), safe)
+  if (!fs.existsSync(full)) return res.status(404).json({ error: 'Not found' })
+  res.download(full)
 })
 
 // ── Company settings ──────────────────────────────────────────────────────
