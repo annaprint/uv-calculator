@@ -357,6 +357,11 @@ app.post('/api/quotes', requireAuth, (req, res) => {
 })
 
 app.delete('/api/quotes/:id', requireAuth, (req, res) => {
+  const q = db.prepare('SELECT user_id FROM quotes WHERE id=?').get(req.params.id)
+  if (!q) return res.status(404).json({ error: 'Not found' })
+  if (!req.user.is_admin && q.user_id !== req.user.id) {
+    return res.status(403).json({ error: 'Forbidden' })
+  }
   db.prepare('DELETE FROM quotes WHERE id=?').run(req.params.id)
   res.json({ ok: true })
 })
