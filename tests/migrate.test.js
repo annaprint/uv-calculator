@@ -75,3 +75,32 @@ describe('migration v3 — clients + quotes.client_id + quotes.comment', () => {
     ).toThrow(/NOT NULL/)
   })
 })
+
+describe('migration v4 — quotes.total + backfill', () => {
+  test('adds total column to quotes', () => {
+    const db = createDb(':memory:')
+    const cols = db.prepare("PRAGMA table_info(quotes)").all().map(c => c.name)
+    expect(cols).toContain('total')
+  })
+
+  test('backfills total from existing result.total JSON', () => {
+    // Construct DB at v3, insert a row, then run applyMigrations to advance to v4
+    // and verify the row's total is populated.
+    const Database = require('better-sqlite3')
+    const { applyMigrations, migrations } = require('../db')
+    const db = new Database(':memory:')
+    db.pragma('foreign_keys = ON')
+    db.function('lower_ru', { deterministic: true }, s => String(s ?? '').toLowerCase())
+    for (const m of migrations.filter(m => m.version <= 3)) {
+      db.transaction(() => { m.up(db); db.pragma(`user_version=${m.version}`) })()
+    }
+    db.prepare("INSERT INTO quotes (type,params,result,kp_text) VALUES (?,?,?,?)")
+      .run('sheet', '{}', JSON.stringify({ total: 1234 }), 'kp')
+    db.prepare("INSERT INTO quotes (type,params,result,kp_text) VALUES (?,?,?,?)")
+      .run('sheet', '{}', 'not-json', 'kp2')
+    applyMigrations(db)
+    const rows = db.prepare('SELECT id, total FROM quotes ORDER BY id').all()
+    expect(rows[0].total).toBe(1234)
+    expect(rows[1].total).toBeNull()
+  })
+})

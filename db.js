@@ -91,6 +91,20 @@ const migrations = [
         ALTER TABLE quotes ADD COLUMN comment TEXT;
       `)
     }
+  },
+  {
+    version: 4,
+    up: (db) => {
+      db.exec('ALTER TABLE quotes ADD COLUMN total REAL')
+      const rows = db.prepare('SELECT id, result FROM quotes').all()
+      const upd = db.prepare('UPDATE quotes SET total=? WHERE id=?')
+      for (const r of rows) {
+        try {
+          const t = JSON.parse(r.result)?.total
+          if (typeof t === 'number') upd.run(t, r.id)
+        } catch {}
+      }
+    }
   }
 ]
 
