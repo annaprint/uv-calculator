@@ -71,6 +71,26 @@ const migrations = [
         ALTER TABLE quotes ADD COLUMN user_id INTEGER REFERENCES users(id);
       `)
     }
+  },
+  {
+    version: 3,
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE clients (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          contact_person TEXT,
+          phone TEXT,
+          email TEXT,
+          notes TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX idx_clients_name ON clients(name);
+        ALTER TABLE quotes ADD COLUMN client_id INTEGER REFERENCES clients(id);
+        ALTER TABLE quotes ADD COLUMN comment TEXT;
+      `)
+    }
   }
 ]
 

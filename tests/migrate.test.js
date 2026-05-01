@@ -51,3 +51,27 @@ describe('migration v2 — users + sessions', () => {
     ).toThrow(/UNIQUE/)
   })
 })
+
+describe('migration v3 — clients + quotes.client_id + quotes.comment', () => {
+  test('creates clients table with required columns', () => {
+    const db = createDb(':memory:')
+    const cols = db.prepare("PRAGMA table_info(clients)").all().map(c => c.name)
+    expect(cols).toEqual(expect.arrayContaining(
+      ['id','name','contact_person','phone','email','notes','created_at','updated_at']
+    ))
+  })
+
+  test('adds quotes.client_id and quotes.comment columns', () => {
+    const db = createDb(':memory:')
+    const cols = db.prepare("PRAGMA table_info(quotes)").all().map(c => c.name)
+    expect(cols).toContain('client_id')
+    expect(cols).toContain('comment')
+  })
+
+  test('clients.name is required (NOT NULL)', () => {
+    const db = createDb(':memory:')
+    expect(() =>
+      db.prepare("INSERT INTO clients (name) VALUES (NULL)").run()
+    ).toThrow(/NOT NULL/)
+  })
+})
