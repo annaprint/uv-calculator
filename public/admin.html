@@ -136,10 +136,36 @@
   <!-- Quotes -->
   <div id="sec-quotes" class="section">
     <h2>Сохранённые КП</h2>
+    <div class="add-row" style="gap:6px;">
+      <input type="text" id="hist-q" placeholder="Поиск по тексту/комментарию" oninput="loadQuotes()" style="width:220px;">
+      <input type="date" id="hist-date-from" onchange="loadQuotes()">
+      <input type="date" id="hist-date-to" onchange="loadQuotes()">
+      <select id="hist-type" onchange="loadQuotes()" style="width:auto;">
+        <option value="">Тип: все</option>
+        <option value="sheet">Листовая</option>
+        <option value="souvenir">Сувенирная</option>
+      </select>
+      <select id="hist-user" onchange="loadQuotes()" style="width:auto;"><option value="">Менеджер: все</option></select>
+      <select id="hist-client" onchange="loadQuotes()" style="width:auto;"><option value="">Клиент: все</option></select>
+    </div>
+    <div class="add-row" style="gap:6px;">
+      <input type="number" id="hist-total-from" placeholder="Сумма от" oninput="loadQuotes()" style="width:110px;">
+      <input type="number" id="hist-total-to" placeholder="Сумма до" oninput="loadQuotes()" style="width:110px;">
+      <select id="hist-sort" onchange="loadQuotes()" style="width:auto;">
+        <option value="created_at">по дате</option>
+        <option value="total">по сумме</option>
+      </select>
+      <select id="hist-dir" onchange="loadQuotes()" style="width:auto;">
+        <option value="desc">↓ убыв.</option>
+        <option value="asc">↑ возр.</option>
+      </select>
+      <span id="hist-count" style="font-size:12px;color:#64748b;margin-left:auto;"></span>
+    </div>
     <table>
-      <thead><tr><th>Дата</th><th>Тип</th><th>Итого</th><th>Менеджер</th><th>Клиент</th><th>Текст КП</th><th></th></tr></thead>
+      <thead><tr><th>#</th><th>Дата</th><th>Тип</th><th>Итого</th><th>Менеджер</th><th>Клиент</th><th>Комментарий</th><th></th></tr></thead>
       <tbody id="quotes-body"></tbody>
     </table>
+    <button class="btn btn-primary" id="hist-more" style="display:none;" onclick="loadQuotes(false)">Показать ещё</button>
   </div>
 
   <!-- Clients -->

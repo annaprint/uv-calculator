@@ -239,23 +239,81 @@ async function importCatalog(input) {
 }
 
 // ── Quotes ────────────────────────────────────────────────────────────────
-async function loadQuotes() {
+const HIST_LIMIT = 50
+let histOffset = 0
+
+function histParams() {
+  const params = new URLSearchParams()
+  const map = {
+    'hist-q': 'q',
+    'hist-date-from': 'date_from',
+    'hist-date-to': 'date_to',
+    'hist-type': 'type',
+    'hist-user': 'user_id',
+    'hist-client': 'client_id',
+    'hist-total-from': 'total_from',
+    'hist-total-to': 'total_to',
+    'hist-sort': 'sort',
+    'hist-dir': 'dir'
+  }
+  for (const [id, key] of Object.entries(map)) {
+    const v = document.getElementById(id)?.value
+    if (v) params.set(key, v)
+  }
+  return params
+}
+
+async function loadQuotes(reset = true) {
+  if (reset) {
+    histOffset = 0
+    document.getElementById('quotes-body').innerHTML = ''
+    await fillHistFilters()
+  }
   try {
-    const data = await api('GET', '/api/quotes?limit=200')
-    const quotes = data.items
-    document.getElementById('quotes-body').innerHTML = quotes.map(q => {
-      const total = q.total != null ? q.total.toLocaleString('ru-RU') : '—'
-      return `<tr>
+    const params = histParams()
+    params.set('limit', String(HIST_LIMIT))
+    params.set('offset', String(histOffset))
+    const data = await api('GET', '/api/quotes?' + params)
+    const tbody = document.getElementById('quotes-body')
+    data.items.forEach(q => {
+      const total = q.total != null ? q.total.toLocaleString('ru-RU') + ' ₽' : '—'
+      const tr = document.createElement('tr')
+      tr.innerHTML = `
+        <td style="font-size:12px;color:#94a3b8;">#${q.id}</td>
         <td style="font-size:12px;color:#64748b;">${q.created_at}</td>
         <td>${q.type === 'sheet' ? '📄 Листовая' : '🎁 Сувенирная'}</td>
-        <td style="font-weight:600;">${total} ₽</td>
+        <td style="font-weight:600;">${total}</td>
         <td style="font-size:12px;color:#94a3b8;">${esc(q.user_name || '—')}</td>
         <td style="font-size:12px;color:#94a3b8;">${esc(q.client_name || '—')}</td>
-        <td style="font-size:12px;max-width:200px;white-space:pre-wrap;">${esc(q.kp_text)}</td>
-        <td><button class="btn-danger" onclick="deleteQuote(${q.id})">✕</button></td>
-      </tr>`
-    }).join('')
+        <td style="font-size:12px;max-width:180px;white-space:pre-wrap;">${esc(q.comment || '')}</td>
+        <td>
+          <a href="/api/quotes/${q.id}/pdf" target="_blank" style="font-size:12px;color:#3b82f6;">PDF</a>
+          <button class="btn-danger" onclick="deleteQuote(${q.id})">✕</button>
+        </td>`
+      tbody.appendChild(tr)
+    })
+    histOffset += data.items.length
+    document.getElementById('hist-count').textContent = `${histOffset} из ${data.total}`
+    document.getElementById('hist-more').style.display = histOffset < data.total ? '' : 'none'
   } catch (e) { showToast('Ошибка: ' + e.message) }
+}
+
+async function fillHistFilters() {
+  // Try to fetch users (requires admin); fall back silently if forbidden.
+  let userOptions = '<option value="">Менеджер: все</option>'
+  try {
+    const us = await api('GET', '/api/users')
+    userOptions += us.map(u => `<option value="${u.id}">${esc(u.full_name)}</option>`).join('')
+  } catch (_) { /* manager view: no user filter */ }
+  const cs = await api('GET', '/api/clients')
+  const userSel = document.getElementById('hist-user')
+  const clientSel = document.getElementById('hist-client')
+  const prevUser = userSel.value
+  const prevClient = clientSel.value
+  userSel.innerHTML = userOptions
+  clientSel.innerHTML = '<option value="">Клиент: все</option>' + cs.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('')
+  userSel.value = prevUser
+  clientSel.value = prevClient
 }
 
 async function deleteQuote(id) {
