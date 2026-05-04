@@ -33,33 +33,62 @@ function calcSheet({ widthMm, heightMm, qty, materialId, clientMaterial, uvVarni
   }
 }
 
-function calcSouvenir({ productTypeId, qty, uvVarnish, reliefLayers = 0, urgent }, prices) {
-  const price = prices.find(p => p.id === productTypeId)
-  if (!price) throw new Error('Product type not found')
+function calcSouvenir(
+  { catalogItemId, productTypeId, manualProductPrice, qty, uvVarnish = false, reliefLayers = 0, urgent = false },
+  prices,
+  catalog = []
+) {
+  let priceRow, productPrice, catalogItemName = null
 
-  let base
-  if (qty < 30)        base = price.qty_up_to_29
-  else if (qty < 100)  base = price.qty_from_30  * qty
-  else if (qty < 500)  base = price.qty_from_100 * qty
-  else if (qty < 1000) base = price.qty_from_500 * qty
-  else                 base = price.qty_from_1000 * qty
+  if (catalogItemId != null) {
+    const item = catalog.find(c => c.id === catalogItemId)
+    if (!item) throw new Error('Catalog item not found')
+    if (!item.souvenir_price_id) throw new Error('Catalog item not linked to print type')
+    priceRow = prices.find(p => p.id === item.souvenir_price_id)
+    productPrice = item.customer_price ?? 0
+    catalogItemName = item.name
+  } else if (productTypeId != null) {
+    priceRow = prices.find(p => p.id === productTypeId)
+    productPrice = Number(manualProductPrice) || 0
+  } else {
+    throw new Error('Either catalogItemId or productTypeId required')
+  }
+  if (!priceRow) throw new Error('Print price not found')
 
-  const baseCost = base
-  if (uvVarnish) base += baseCost * 0.30
-  for (let i = 0; i < reliefLayers; i++) base += baseCost * 0.30
-  if (urgent) base *= 1.30
+  let perUnit
+  if (qty < 30)        perUnit = priceRow.qty_up_to_29
+  else if (qty < 100)  perUnit = priceRow.qty_from_30
+  else if (qty < 500)  perUnit = priceRow.qty_from_100
+  else if (qty < 1000) perUnit = priceRow.qty_from_500
+  else                 perUnit = priceRow.qty_from_1000
 
-  const tierApplied = qty < 30 ? 'up_to_29'
-    : qty < 100  ? 'from_30'
-    : qty < 500  ? 'from_100'
-    : qty < 1000 ? 'from_500'
-    : 'from_1000'
+  let printBase = perUnit * qty
+  const minOrder = priceRow.min_order || 0
+  const minOrderApplied = printBase < minOrder
+  if (minOrderApplied) printBase = minOrder
+
+  let printCost = printBase
+  if (uvVarnish) printCost += printBase * 0.30
+  for (let i = 0; i < reliefLayers; i++) printCost += printBase * 0.30
+
+  const productCost = productPrice * qty
+
+  let total = printCost + productCost
+  if (urgent) total *= 1.30
 
   return {
-    base: +baseCost.toFixed(2),
-    total: +base.toFixed(2),
-    pricePerUnit: +(base / qty).toFixed(2),
-    tierApplied
+    productTypeName: priceRow.product_type,
+    catalogItemName,
+    qty,
+    pricePerUnit: perUnit,
+    minOrder,
+    minOrderApplied,
+    printBase: +printBase.toFixed(2),
+    printCost: +printCost.toFixed(2),
+    productPrice: +productPrice.toFixed(2),
+    productCost: +productCost.toFixed(2),
+    total: +total.toFixed(2),
+    pricePerUnitFinal: +(total / qty).toFixed(2)
   }
 }
 

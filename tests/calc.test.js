@@ -13,16 +13,22 @@ const TIERS = [
   { id: 5, min_sqm: 100, price_per_sqm: 280 }
 ]
 
-const SOUVENIR_PRICES = [
+const SOUVENIR_PRICES_V7 = [
   {
     id: 1,
-    product_type: 'Ручки (пластик)',
-    qty_up_to_29: 1500,
+    product_type: 'Ручки (белый пластик)',
+    qty_up_to_29: 51,
     qty_from_30: 45,
     qty_from_100: 29,
     qty_from_500: 20,
-    qty_from_1000: 14
+    qty_from_1000: 14,
+    min_order: 1500
   }
+]
+
+const CATALOG = [
+  { id: 10, article: 'A1', name: 'Ручка Senator',  souvenir_price_id: 1, customer_price: 80 },
+  { id: 11, article: 'A2', name: 'Ручка без типа', souvenir_price_id: null, customer_price: 100 }
 ]
 
 describe('calcSheet', () => {
@@ -99,48 +105,98 @@ describe('calcSheet', () => {
   })
 })
 
-describe('calcSouvenir', () => {
-  test('qty < 30 uses fixed batch price', () => {
+describe('calcSouvenir (v7)', () => {
+  test('по каталогу: печать + продукт, без надбавок', () => {
     const r = calcSouvenir(
-      { productTypeId: 1, qty: 10, uvVarnish: false, reliefLayers: 0, urgent: false },
-      SOUVENIR_PRICES
+      { catalogItemId: 10, qty: 250, urgent: false, uvVarnish: false, reliefLayers: 0 },
+      SOUVENIR_PRICES_V7, CATALOG
     )
-    expect(r.base).toBe(1500)
-    expect(r.total).toBe(1500)
+    expect(r.printCost).toBeCloseTo(7250)
+    expect(r.productCost).toBeCloseTo(20000)
+    expect(r.total).toBeCloseTo(27250)
   })
 
-  test('qty >= 100 uses per-unit price', () => {
+  test('qty<30: per-unit × qty (а не флэт)', () => {
     const r = calcSouvenir(
-      { productTypeId: 1, qty: 100, uvVarnish: false, reliefLayers: 0, urgent: false },
-      SOUVENIR_PRICES
+      { catalogItemId: 10, qty: 10, urgent: false, uvVarnish: false, reliefLayers: 0 },
+      SOUVENIR_PRICES_V7, CATALOG
     )
-    // 29 × 100 = 2900
-    expect(r.base).toBeCloseTo(2900)
-    expect(r.total).toBeCloseTo(2900)
+    expect(r.minOrderApplied).toBe(true)
+    expect(r.printCost).toBeCloseTo(1500)
+    expect(r.productCost).toBeCloseTo(800)
+    expect(r.total).toBeCloseTo(2300)
   })
 
-  test('uv varnish adds 30% to base', () => {
+  test('qty<30 и per-unit×qty уже больше min_order: min не применяется', () => {
     const r = calcSouvenir(
-      { productTypeId: 1, qty: 100, uvVarnish: true, reliefLayers: 0, urgent: false },
-      SOUVENIR_PRICES
+      { catalogItemId: 10, qty: 29, urgent: false, uvVarnish: false, reliefLayers: 0 },
+      SOUVENIR_PRICES_V7, CATALOG
     )
-    // base 2900, +30% = 3770
-    expect(r.total).toBeCloseTo(3770)
+    expect(r.minOrderApplied).toBe(true)
+    expect(r.printCost).toBeCloseTo(1500)
+
+    const r2 = calcSouvenir(
+      { catalogItemId: 10, qty: 30, urgent: false, uvVarnish: false, reliefLayers: 0 },
+      SOUVENIR_PRICES_V7, CATALOG
+    )
+    expect(r2.minOrderApplied).toBe(true)
+    expect(r2.printCost).toBeCloseTo(1500)
+
+    const r3 = calcSouvenir(
+      { catalogItemId: 10, qty: 40, urgent: false, uvVarnish: false, reliefLayers: 0 },
+      SOUVENIR_PRICES_V7, CATALOG
+    )
+    expect(r3.minOrderApplied).toBe(false)
+    expect(r3.printCost).toBeCloseTo(1800)
   })
 
-  test('urgent adds 30% to full total', () => {
+  test('лак +30% применяется только к печати, не к продукту', () => {
     const r = calcSouvenir(
-      { productTypeId: 1, qty: 100, uvVarnish: false, reliefLayers: 0, urgent: true },
-      SOUVENIR_PRICES
+      { catalogItemId: 10, qty: 100, urgent: false, uvVarnish: true, reliefLayers: 0 },
+      SOUVENIR_PRICES_V7, CATALOG
     )
-    // 2900 × 1.30 = 3770
-    expect(r.total).toBeCloseTo(3770)
+    expect(r.printCost).toBeCloseTo(3770)
+    expect(r.productCost).toBeCloseTo(8000)
+    expect(r.total).toBeCloseTo(11770)
   })
 
-  test('throws if product type not found', () => {
-    expect(() =>
-      calcSouvenir({ productTypeId: 99, qty: 100, uvVarnish: false, reliefLayers: 0, urgent: false }, SOUVENIR_PRICES)
-    ).toThrow('Product type not found')
+  test('срочность +30% применяется ко всему итогу (печать+продукт)', () => {
+    const r = calcSouvenir(
+      { catalogItemId: 10, qty: 100, urgent: true, uvVarnish: false, reliefLayers: 0 },
+      SOUVENIR_PRICES_V7, CATALOG
+    )
+    expect(r.total).toBeCloseTo(14170)
+  })
+
+  test('ручной режим: productTypeId + manualProductPrice', () => {
+    const r = calcSouvenir(
+      { productTypeId: 1, manualProductPrice: 50, qty: 100, urgent: false, uvVarnish: false, reliefLayers: 0 },
+      SOUVENIR_PRICES_V7, CATALOG
+    )
+    expect(r.printCost).toBeCloseTo(2900)
+    expect(r.productCost).toBeCloseTo(5000)
+    expect(r.total).toBeCloseTo(7900)
+  })
+
+  test('каталожный товар без привязки → throw', () => {
+    expect(() => calcSouvenir(
+      { catalogItemId: 11, qty: 100 },
+      SOUVENIR_PRICES_V7, CATALOG
+    )).toThrow('not linked')
+  })
+
+  test('ни catalogItemId ни productTypeId → throw', () => {
+    expect(() => calcSouvenir(
+      { qty: 100 },
+      SOUVENIR_PRICES_V7, CATALOG
+    )).toThrow()
+  })
+
+  test('catalogItemId не найден → throw', () => {
+    expect(() => calcSouvenir(
+      { catalogItemId: 999, qty: 100 },
+      SOUVENIR_PRICES_V7, CATALOG
+    )).toThrow('Catalog item not found')
   })
 })
 
