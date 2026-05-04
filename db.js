@@ -130,6 +130,8 @@ const migrations = [
       ins.run('kp_validity_days', '7')
     }
   },
+  // v6 is reserved for the parallel cutting-services branch (see specs/2026-05-04-cutting-design.md).
+  // v7 applies cleanly whether or not v6 has landed yet.
   {
     version: 6,
     up: (db) => {

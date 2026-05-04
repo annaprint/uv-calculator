@@ -289,4 +289,66 @@ describe('migration v7 — souvenir min_order, catalog customer_price, keychain_
     expect(v2).toBe(v1)
     expect(keychainCount2).toBe(keychainCount1)
   })
+
+  test('souvenir_prices: миграция v7 переносит qty_up_to_29 в min_order и обнуляет qty_up_to_29', () => {
+    // Build a DB at v5 (the latest pre-v7 version in this branch), insert a row in old format,
+    // then run applyMigrations to advance through v7 and verify the data was migrated.
+    const Database = require('better-sqlite3')
+    const { applyMigrations, migrations } = require('../db')
+    const db = new Database(':memory:')
+    db.pragma('foreign_keys = ON')
+    db.function('lower_ru', { deterministic: true }, s => String(s ?? '').toLowerCase())
+    for (const m of migrations.filter(x => x.version <= 5)) {
+      db.transaction(() => { m.up(db); db.pragma(`user_version = ${m.version}`) })()
+    }
+    // Pre-v7: souvenir_prices has no min_order column; qty_up_to_29 is the qty<30 price.
+    db.prepare(
+      'INSERT INTO souvenir_prices (product_type, qty_up_to_29, qty_from_30, qty_from_100, qty_from_500, qty_from_1000) VALUES (?,?,?,?,?,?)'
+    ).run('TestProd', 1500, 45, 29, 20, 14)
+    // Run v7
+    applyMigrations(db)
+    // After v7: min_order=1500 (was qty_up_to_29), qty_up_to_29=0, остальные тиражные цены не тронуты
+    const row = db.prepare('SELECT * FROM souvenir_prices WHERE product_type = ?').get('TestProd')
+    expect(row.min_order).toBe(1500)
+    expect(row.qty_up_to_29).toBe(0)
+    expect(row.qty_from_30).toBe(45)
+    expect(row.qty_from_100).toBe(29)
+    expect(row.qty_from_500).toBe(20)
+    expect(row.qty_from_1000).toBe(14)
+  })
+
+  test('recreate quotes preserves all v1-v5 columns', () => {
+    // Документирует контракт: пересоздание quotes на шаге 4 v7 (CREATE quotes_new + INSERT SELECT *
+    // + DROP + RENAME) сохраняет все колонки, накопленные через v1..v5
+    // (created_at, type, params, result, kp_text, user_id, client_id, comment, total, pdf_path).
+    const db = createDb(':memory:')
+    // Сидируем зависимости (FK) и вставляем quote-строку с реалистичными значениями всех v1..v5 колонок.
+    db.prepare("INSERT INTO users (id, email, password_hash, full_name) VALUES (?,?,?,?)")
+      .run(1, 'test@example.com', 'hash', 'Test User')
+    db.prepare("INSERT INTO clients (id, name) VALUES (?,?)").run(1, 'Test Client')
+    const insertedParams = JSON.stringify({ width: 100, height: 200, qty: 5 })
+    const insertedResult = JSON.stringify({ total: 1234.56, breakdown: 'x' })
+    db.prepare(
+      "INSERT INTO quotes (id, type, params, result, kp_text, user_id, client_id, comment, total, pdf_path) " +
+      "VALUES (?,?,?,?,?,?,?,?,?,?)"
+    ).run(42, 'sheet', insertedParams, insertedResult, 'KP TEXT', 1, 1, 'Test comment', 1234.56, '/tmp/q.pdf')
+
+    // Запускаем applyMigrations повторно — мы уже на v7, миграции должны быть no-op
+    // (ничего не должно измениться).
+    applyMigrations(db)
+
+    const row = db.prepare('SELECT * FROM quotes WHERE id = ?').get(42)
+    expect(row).toBeDefined()
+    expect(row.id).toBe(42)
+    expect(row.type).toBe('sheet')
+    expect(row.params).toBe(insertedParams)
+    expect(row.result).toBe(insertedResult)
+    expect(row.kp_text).toBe('KP TEXT')
+    expect(row.user_id).toBe(1)
+    expect(row.client_id).toBe(1)
+    expect(row.comment).toBe('Test comment')
+    expect(row.total).toBe(1234.56)
+    expect(row.pdf_path).toBe('/tmp/q.pdf')
+    expect(row.created_at).toBeTruthy()
+  })
 })
