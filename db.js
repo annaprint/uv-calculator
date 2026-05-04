@@ -217,6 +217,94 @@ const migrations = [
         ALTER TABLE quotes_new RENAME TO quotes;
       `)
     }
+  },
+  {
+    version: 7,
+    up: (db) => {
+      // 1. souvenir_prices: добавить min_order, перенести данные
+      db.exec('ALTER TABLE souvenir_prices ADD COLUMN min_order REAL NOT NULL DEFAULT 0')
+      db.exec('UPDATE souvenir_prices SET min_order = qty_up_to_29, qty_up_to_29 = 0')
+
+      // 2. catalog_items: добавить customer_price
+      db.exec('ALTER TABLE catalog_items ADD COLUMN customer_price REAL')
+
+      // 3. keychain_prices
+      db.exec(`
+        CREATE TABLE keychain_prices (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          acrylic_type TEXT NOT NULL,
+          size_max_cm REAL NOT NULL,
+          qty_min INTEGER NOT NULL,
+          price_per_piece REAL NOT NULL,
+          UNIQUE(acrylic_type, size_max_cm, qty_min)
+        );
+      `)
+      const ins = db.prepare(
+        'INSERT OR IGNORE INTO keychain_prices (acrylic_type, size_max_cm, qty_min, price_per_piece) VALUES (?,?,?,?)'
+      )
+      const SIZES = [3, 4, 6, 8, 10]
+      const TIERS = [1, 10, 100, 500]
+      const PRICES = {
+        'Прозрачный': [
+          [80, 120, 160, 200, 240],
+          [46, 62, 78, 112, 144],
+          [38, 54, 70, 86, 136],
+          [30, 46, 62, 78, 128]
+        ],
+        'Тонированный': [
+          [92, 138, 184, 230, 276],
+          [53, 72, 90, 129, 166],
+          [44, 63, 81, 99, 156],
+          [35, 53, 72, 90, 147]
+        ],
+        'Непрозр/градиент 1 сторона': [
+          [104, 156, 208, 260, 312],
+          [60, 81, 102, 146, 187],
+          [50, 71, 92, 112, 177],
+          [40, 60, 81, 102, 166]
+        ],
+        'Непрозр/градиент 2 стороны': [
+          [120, 180, 240, 300, 360],
+          [70, 94, 118, 168, 216],
+          [58, 82, 106, 130, 204],
+          [46, 70, 94, 118, 192]
+        ],
+        'Люминесцентный': [
+          [120, 180, 240, 300, 360],
+          [70, 94, 118, 168, 216],
+          [58, 82, 106, 130, 204],
+          [46, 70, 94, 118, 192]
+        ]
+      }
+      for (const [type, matrix] of Object.entries(PRICES)) {
+        TIERS.forEach((qty, ti) => {
+          SIZES.forEach((size, si) => {
+            ins.run(type, size, qty, matrix[ti][si])
+          })
+        })
+      }
+
+      // 4. quotes.type CHECK — пересоздать таблицу, расширив набор для 'keychain'
+      // (v6 уже расширила CHECK для cutting_*; v7 добавляет 'keychain' поверх)
+      db.exec(`
+        CREATE TABLE quotes_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+          type TEXT NOT NULL CHECK(type IN ('sheet','souvenir','keychain','cutting_plotter','cutting_laser')),
+          params TEXT NOT NULL,
+          result TEXT NOT NULL,
+          kp_text TEXT NOT NULL,
+          user_id INTEGER REFERENCES users(id),
+          client_id INTEGER REFERENCES clients(id),
+          comment TEXT,
+          total REAL,
+          pdf_path TEXT
+        );
+        INSERT INTO quotes_new SELECT * FROM quotes;
+        DROP TABLE quotes;
+        ALTER TABLE quotes_new RENAME TO quotes;
+      `)
+    }
   }
 ]
 

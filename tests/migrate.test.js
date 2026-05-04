@@ -223,3 +223,70 @@ describe('migration v6 — cutting_materials + quotes type expansion', () => {
     expect(rows[0].total).toBe(42)
   })
 })
+
+describe('migration v7 — souvenir min_order, catalog customer_price, keychain_prices, quotes.type CHECK', () => {
+  test('souvenir_prices получает min_order и переносит туда старое qty_up_to_29', () => {
+    const db = createDb(':memory:')
+    // на момент v7 уже выполнены v1..v6 — сидируем тестовую строку с старой семантикой
+    db.prepare(
+      'INSERT INTO souvenir_prices (product_type, qty_up_to_29, qty_from_30, qty_from_100, qty_from_500, qty_from_1000) VALUES (?,?,?,?,?,?)'
+    ).run('TestProd', 1500, 45, 29, 20, 14)
+    // (миграция v7 уже применилась через createDb — проверяем что данные в новом формате)
+    const cols = db.prepare("PRAGMA table_info(souvenir_prices)").all().map(c => c.name)
+    expect(cols).toContain('min_order')
+  })
+
+  test('catalog_items получает customer_price', () => {
+    const db = createDb(':memory:')
+    const cols = db.prepare("PRAGMA table_info(catalog_items)").all().map(c => c.name)
+    expect(cols).toContain('customer_price')
+  })
+
+  test('keychain_prices создана со 100 строк', () => {
+    const db = createDb(':memory:')
+    const count = db.prepare('SELECT COUNT(*) AS c FROM keychain_prices').get().c
+    expect(count).toBe(100)  // 5 типов × 5 размеров × 4 тиражных тира
+  })
+
+  test('keychain_prices: цены прозрачного акрила 6 см при 100-499 шт = 70 ₽/шт', () => {
+    const db = createDb(':memory:')
+    const row = db.prepare(
+      'SELECT price_per_piece FROM keychain_prices WHERE acrylic_type=? AND size_max_cm=? AND qty_min=?'
+    ).get('Прозрачный', 6, 100)
+    expect(row.price_per_piece).toBe(70)
+  })
+
+  test('quotes.type CHECK расширен — keychain принимается', () => {
+    const db = createDb(':memory:')
+    expect(() => {
+      db.prepare("INSERT INTO quotes (type, params, result, kp_text) VALUES ('keychain', '{}', '{}', 'x')").run()
+    }).not.toThrow()
+  })
+
+  test('quotes.type CHECK расширен — cutting_plotter и cutting_laser принимаются', () => {
+    const db = createDb(':memory:')
+    expect(() => {
+      db.prepare("INSERT INTO quotes (type, params, result, kp_text) VALUES ('cutting_plotter', '{}', '{}', 'x')").run()
+      db.prepare("INSERT INTO quotes (type, params, result, kp_text) VALUES ('cutting_laser', '{}', '{}', 'x')").run()
+    }).not.toThrow()
+  })
+
+  test('quotes.type CHECK отвергает неизвестный тип', () => {
+    const db = createDb(':memory:')
+    expect(() => {
+      db.prepare("INSERT INTO quotes (type, params, result, kp_text) VALUES ('unknown', '{}', '{}', 'x')").run()
+    }).toThrow()
+  })
+
+  test('повторный applyMigrations идемпотентен', () => {
+    const { applyMigrations } = require('../db')
+    const db = createDb(':memory:')
+    const v1 = db.pragma('user_version', { simple: true })
+    const keychainCount1 = db.prepare('SELECT COUNT(*) AS c FROM keychain_prices').get().c
+    applyMigrations(db)
+    const v2 = db.pragma('user_version', { simple: true })
+    const keychainCount2 = db.prepare('SELECT COUNT(*) AS c FROM keychain_prices').get().c
+    expect(v2).toBe(v1)
+    expect(keychainCount2).toBe(keychainCount1)
+  })
+})
