@@ -38,4 +38,38 @@ describe('generateQuotePdf', () => {
     expect(Buffer.isBuffer(buf)).toBe(true)
     expect(buf.slice(0, 5).toString()).toBe('%PDF-')
   })
+
+  test('renders cutting quote without error and includes Cyrillic material name', async () => {
+    const quote = {
+      id: 42,
+      created_at: '2026-05-04T12:00:00',
+      type: 'cutting_laser',
+      kp_text: 'КП на высечку (на лазере)\nМатериал: Каппа 5 мм\nДлина реза: 12.5 м.п.',
+      result: JSON.stringify({
+        service: 'laser',
+        materialName: 'Каппа',
+        thicknessMm: 5,
+        pricePerM: 50,
+        lengthM: 12.5,
+        complexContour: true,
+        urgent: true,
+        base: 975,
+        minOrder: 1500,
+        minOrderApplied: true,
+        total: 1500,
+      }),
+      total: 1500,
+    }
+    const settings = {
+      name: 'Сити Принт',
+      address: 'Екатеринбург',
+      signature: 'Анна',
+      kp_validity_days: '7',
+    }
+    const buf = await require('../pdf').generateQuotePdf(quote, null, settings, { email: 'anna@test' })
+    expect(buf).toBeInstanceOf(Buffer)
+    expect(buf.length).toBeGreaterThan(1000)
+    // PDF magic bytes
+    expect(buf.slice(0, 4).toString()).toBe('%PDF')
+  })
 })

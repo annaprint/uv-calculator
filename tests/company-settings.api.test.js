@@ -72,4 +72,11 @@ describe('company-settings API', () => {
     const r = await mgr.post('/api/company-settings/logo').attach('logo', Buffer.from('x'), 'logo.png')
     expect(r.status).toBe(403)
   })
+
+  test('PUT /api/company-settings accepts cutting_min_order and GET returns it', async () => {
+    await adm.put('/api/company-settings').send({ cutting_min_order: '2500' })
+    const r = await mgr.get('/api/company-settings')
+    expect(r.status).toBe(200)
+    expect(r.body.cutting_min_order).toBe('2500')
+  })
 })

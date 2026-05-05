@@ -87,14 +87,47 @@ async function generateQuotePdf(quote, client, settings, user) {
       y += Math.max(40, doc.heightOfString(body, { width: 470 }) + 16)
 
       // ── Calculation breakdown ───────────────────────────────────────────
+      const RU_LABELS = {
+        // shared
+        total:           null, // skipped via filter
+        // sheet
+        totalSqm:        'Площадь, м²',
+        tierApplied:     'Ступень от, м²',
+        basePrintCost:   'Стоимость надпечатки',
+        printCost:       'Печать (с опциями)',
+        materialCost:    'Материал',
+        pricePerUnit:    'Цена за единицу',
+        // souvenir
+        base:            'Базовая стоимость',
+        // cutting
+        service:         'Услуга',
+        materialName:    'Материал',
+        thicknessMm:     'Толщина, мм',
+        pricePerM:       'Цена ₽/м.п.',
+        lengthM:         'Длина реза, м.п.',
+        complexContour:  'Сложный контур',
+        urgent:          'Срочный заказ',
+        minOrder:        'Минимум заказа',
+        minOrderApplied: 'Применён минимум',
+      }
+      const SERVICE_RU = { plotter: 'плоттер', laser: 'лазер' }
+      const fmtVal = (k, v) => {
+        if (typeof v === 'boolean') return v ? 'да' : 'нет'
+        if (k === 'service' && SERVICE_RU[v]) return SERVICE_RU[v]
+        if (typeof v === 'number') return v.toLocaleString('ru-RU')
+        return v
+      }
       const result = safeParse(quote.result)
-      const breakdown = Object.entries(result).filter(([k, v]) => k !== 'total' && (typeof v === 'number' || typeof v === 'string'))
+      const breakdown = Object.entries(result).filter(([k, v]) =>
+        k !== 'total' && v != null && (typeof v === 'number' || typeof v === 'string' || typeof v === 'boolean')
+      )
       if (breakdown.length) {
         doc.fontSize(11).fillColor('#1e293b').text('Расчёт', PAGE_LEFT, y)
         y += 18
         doc.fontSize(10).fillColor('#475569')
         for (const [k, v] of breakdown) {
-          doc.text(`${k}: ${typeof v === 'number' ? v.toLocaleString('ru-RU') : v}`, PAGE_LEFT + 20, y)
+          const label = RU_LABELS[k] || k
+          doc.text(`${label}: ${fmtVal(k, v)}`, PAGE_LEFT + 20, y)
           y += 14
         }
         y += 6
