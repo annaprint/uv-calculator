@@ -72,4 +72,32 @@ describe('generateQuotePdf', () => {
     // PDF magic bytes
     expect(buf.slice(0, 4).toString()).toBe('%PDF')
   })
+
+  test('PDF for keychain quote does not crash and contains acrylic type', async () => {
+    const { generateQuotePdf } = require('../pdf')
+    const buf = await generateQuotePdf(
+      {
+        type: 'keychain',
+        params: JSON.stringify({}),
+        result: JSON.stringify({
+          acrylicType: 'Прозрачный',
+          sizeBucket: 6,
+          qtyTier: 100,
+          pricePerPiece: 70,
+          qty: 100,
+          urgent: false,
+          total: 7000,
+          pricePerUnit: 70
+        }),
+        kp_text: 'Брелок прозрачный до 6 см, 100 шт, 7000 ₽',
+        created_at: '2026-05-04 12:00:00',
+        total: 7000
+      },
+      null,
+      { name: 'Сити Принт' },
+      { full_name: 'Анна', email: 'a@a.com' }
+    )
+    expect(buf).toBeInstanceOf(Buffer)
+    expect(buf.slice(0, 4).toString()).toBe('%PDF')
+  })
 })

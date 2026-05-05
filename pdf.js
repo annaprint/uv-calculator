@@ -5,6 +5,40 @@ const fs = require('fs')
 
 const FONT_PATH = path.join(__dirname, 'assets', 'fonts', 'NotoSans-Regular.ttf')
 
+const KEY_LABELS = {
+  // sheet
+  totalSqm:          'Общая площадь, м²',
+  tierApplied:       'Применённая ступень, м²',
+  basePrintCost:     'Базовая стоимость печати, ₽',
+  printCost:         'Стоимость печати, ₽',
+  materialCost:      'Стоимость материала, ₽',
+  pricePerUnit:      'Цена за штуку, ₽',
+  // souvenir v7
+  productTypeName:   'Тип печати',
+  catalogItemName:   'Товар',
+  qty:               'Тираж, шт',
+  minOrder:          'Минимум заказа, ₽',
+  minOrderApplied:   'Применён минимум заказа',
+  printBase:         'База печати, ₽',
+  productPrice:      'Цена продукта, ₽/шт',
+  productCost:       'Стоимость продукта, ₽',
+  pricePerUnitFinal: 'Итоговая цена за штуку, ₽',
+  // keychain
+  acrylicType:       'Тип акрила',
+  sizeBucket:        'Размерная корзина (до …, см)',
+  qtyTier:           'Тиражный тир (от … шт)',
+  pricePerPiece:     'Цена за штуку, ₽',
+  urgent:            'Срочный заказ',
+  // cutting
+  service:           'Услуга',
+  materialName:      'Материал',
+  thicknessMm:       'Толщина, мм',
+  pricePerM:         'Цена ₽/м.п.',
+  lengthM:           'Длина реза, м.п.',
+  complexContour:    'Сложный контур',
+  base:              'Базовая стоимость'
+}
+
 function safeParse(s) {
   if (!s) return {}
   if (typeof s === 'object') return s
@@ -87,29 +121,6 @@ async function generateQuotePdf(quote, client, settings, user) {
       y += Math.max(40, doc.heightOfString(body, { width: 470 }) + 16)
 
       // ── Calculation breakdown ───────────────────────────────────────────
-      const RU_LABELS = {
-        // shared
-        total:           null, // skipped via filter
-        // sheet
-        totalSqm:        'Площадь, м²',
-        tierApplied:     'Ступень от, м²',
-        basePrintCost:   'Стоимость надпечатки',
-        printCost:       'Печать (с опциями)',
-        materialCost:    'Материал',
-        pricePerUnit:    'Цена за единицу',
-        // souvenir
-        base:            'Базовая стоимость',
-        // cutting
-        service:         'Услуга',
-        materialName:    'Материал',
-        thicknessMm:     'Толщина, мм',
-        pricePerM:       'Цена ₽/м.п.',
-        lengthM:         'Длина реза, м.п.',
-        complexContour:  'Сложный контур',
-        urgent:          'Срочный заказ',
-        minOrder:        'Минимум заказа',
-        minOrderApplied: 'Применён минимум',
-      }
       const SERVICE_RU = { plotter: 'плоттер', laser: 'лазер' }
       const fmtVal = (k, v) => {
         if (typeof v === 'boolean') return v ? 'да' : 'нет'
@@ -126,7 +137,7 @@ async function generateQuotePdf(quote, client, settings, user) {
         y += 18
         doc.fontSize(10).fillColor('#475569')
         for (const [k, v] of breakdown) {
-          const label = RU_LABELS[k] || k
+          const label = KEY_LABELS[k] || k
           doc.text(`${label}: ${fmtVal(k, v)}`, PAGE_LEFT + 20, y)
           y += 14
         }
