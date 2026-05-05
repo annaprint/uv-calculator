@@ -372,31 +372,56 @@ app.post('/api/catalog/import', requireAdmin, upload.single('file'), (req, res) 
   const ws = wb.Sheets[wb.SheetNames[0]]
   const rows = XLSX.utils.sheet_to_json(ws)
 
+  // Загружаем все типы печати один раз — для авто-привязки.
+  const types = db.prepare('SELECT id, product_type FROM souvenir_prices').all()
+  const typeMap = new Map(types.map(t => [t.product_type.toLowerCase().trim(), t.id]))
+
   const upsert = db.prepare(`
-    INSERT INTO catalog_items (article, name, description, colors, photo_url)
-    VALUES (@article, @name, @description, @colors, @photo_url)
+    INSERT INTO catalog_items (article, name, description, colors, photo_url, souvenir_price_id, customer_price)
+    VALUES (@article, @name, @description, @colors, @photo_url, @souvenir_price_id, @customer_price)
     ON CONFLICT(article) DO UPDATE SET
-      name=excluded.name, description=excluded.description,
-      colors=excluded.colors, photo_url=excluded.photo_url
+      name=excluded.name,
+      description=excluded.description,
+      colors=excluded.colors,
+      photo_url=excluded.photo_url,
+      souvenir_price_id=excluded.souvenir_price_id,
+      customer_price=excluded.customer_price
   `)
+
   const importMany = db.transaction((rows) => {
-    let count = 0
+    let imported = 0, linked = 0
+    const unlinked = []
     for (const row of rows) {
       if (!row['Артикул']) continue
+      const rawType = row['Тип продукта'] ? String(row['Тип продукта']).toLowerCase().trim() : null
+      const typeId = rawType ? (typeMap.get(rawType) ?? null) : null
+      const customerPrice = row['Цена клиенту'] != null ? Number(row['Цена клиенту']) : null
+
       upsert.run({
-        article:     String(row['Артикул']),
-        name:        row['Название'] || '',
-        description: row['Описание'] || null,
-        colors:      row['Цвета'] || null,
-        photo_url:   row['Фото (URL)'] || null
+        article:           String(row['Артикул']),
+        name:              row['Название'] || '',
+        description:       row['Описание'] || null,
+        colors:            row['Цвета'] || null,
+        photo_url:         row['Фото (URL)'] || null,
+        souvenir_price_id: typeId,
+        customer_price:    customerPrice
       })
-      count++
+      imported++
+      if (typeId) linked++
+      else if (row['Тип продукта']) {
+        unlinked.push({
+          article: String(row['Артикул']),
+          name: row['Название'] || '',
+          raw_type: String(row['Тип продукта'])
+        })
+      }
     }
-    return count
+    return { imported, linked, unlinked }
   })
+
   try {
-    const count = importMany(rows)
-    res.json({ imported: count })
+    const result = importMany(rows)
+    res.json(result)
   } catch (e) {
     res.status(500).json({ error: e.message })
   }
