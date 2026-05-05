@@ -9,6 +9,7 @@ function showSection(name, el) {
   if (name === 'materials') loadMaterials()
   if (name === 'tiers') loadTiers()
   if (name === 'souvenir') loadSouvenir()
+  if (name === 'cutting') loadCuttingMaterials()
   if (name === 'catalog') loadCatalog()
   if (name === 'quotes') loadQuotes()
   if (name === 'clients') loadClients()
@@ -23,6 +24,14 @@ function showToast(msg = 'Сохранено ✓') {
   t.style.background = msg.startsWith('Ошибка') ? '#ef4444' : '#22c55e'
   t.style.display = 'block'
   setTimeout(() => { t.style.display = 'none' }, 2500)
+}
+
+function cuttingTypeLabel(type) {
+  if (type === 'sheet')           return '📄 Листовая'
+  if (type === 'souvenir')        return '🎁 Сувенирная'
+  if (type === 'cutting_plotter') return '✂️ Плоттер'
+  if (type === 'cutting_laser')   return '🔥 Лазер'
+  return type
 }
 
 async function api(method, path, body) {
@@ -283,7 +292,7 @@ async function loadQuotes(reset = true) {
       tr.innerHTML = `
         <td style="font-size:12px;color:#94a3b8;">#${q.id}</td>
         <td style="font-size:12px;color:#64748b;">${q.created_at}</td>
-        <td>${q.type === 'sheet' ? '📄 Листовая' : '🎁 Сувенирная'}</td>
+        <td>${cuttingTypeLabel(q.type)}</td>
         <td style="font-weight:600;">${total}</td>
         <td style="font-size:12px;color:#94a3b8;">${esc(q.user_name || '—')}</td>
         <td style="font-size:12px;color:#94a3b8;">${esc(q.client_name || '—')}</td>
@@ -550,6 +559,107 @@ async function toggleUserActive(id) {
     await api('PUT', `/api/users/${id}/active`, { is_active: u.is_active ? 0 : 1 })
     showToast('Сохранено ✓')
     loadUsers()
+  } catch (e) { showToast('Ошибка: ' + e.message) }
+}
+
+// ── Cutting materials (admin) ─────────────────────────────────────────────
+let cuttingPlotter = []
+let cuttingLaser = []
+
+async function loadCuttingMaterials() {
+  try {
+    const [p, l] = await Promise.all([
+      api('GET', '/api/cutting-materials/all?service=plotter'),
+      api('GET', '/api/cutting-materials/all?service=laser')
+    ])
+    cuttingPlotter = p
+    cuttingLaser = l
+    renderCuttingTable('plotter')
+    renderCuttingTable('laser')
+  } catch (e) { showToast('Ошибка: ' + e.message) }
+}
+
+function renderCuttingTable(service) {
+  const list = service === 'plotter' ? cuttingPlotter : cuttingLaser
+  const tbody = document.getElementById(`cutting-${service}-body`)
+  if (!tbody) return
+  tbody.innerHTML = list.map(m => {
+    const inactive = m.is_active ? '' : ' style="opacity:0.4;"'
+    const thicknessCell = service === 'laser'
+      ? `<td>${m.thickness_mm == null ? '—' : m.thickness_mm}</td>`
+      : ''
+    const statusBadge = m.is_active
+      ? '<span style="color:#22c55e;">активен</span>'
+      : '<span style="color:#94a3b8;">скрыт</span>'
+    return `
+      <tr${inactive}>
+        <td>${esc(m.name)}</td>
+        ${thicknessCell}
+        <td>${m.price_per_m}</td>
+        <td>${m.sort_order}</td>
+        <td>${statusBadge}</td>
+        <td>
+          <button onclick="editCuttingField(${m.id}, 'name',         'Название')">Имя</button>
+          <button onclick="editCuttingField(${m.id}, 'price_per_m',  'Цена ₽/м.п.')">Цена</button>
+          ${service === 'laser' ? `<button onclick="editCuttingField(${m.id}, 'thickness_mm', 'Толщина, мм')">Толщ.</button>` : ''}
+          <button onclick="editCuttingField(${m.id}, 'sort_order',   'Сортировка')">Сорт.</button>
+          <button class="btn-danger" onclick="toggleCuttingActive(${m.id})">${m.is_active ? 'Скрыть' : 'Показать'}</button>
+        </td>
+      </tr>`
+  }).join('')
+}
+
+async function addCuttingMaterial(service) {
+  const name  = document.getElementById(`cut-${service[0]}-name`).value.trim()
+  const price = +document.getElementById(`cut-${service[0]}-price`).value
+  const sort  = +document.getElementById(`cut-${service[0]}-sort`).value || 0
+  const thickness = service === 'laser'
+    ? (document.getElementById('cut-l-thickness').value === '' ? null : +document.getElementById('cut-l-thickness').value)
+    : null
+  if (!name || !price) return alert('Заполните название и цену')
+  try {
+    await api('POST', '/api/cutting-materials', {
+      service, name, thickness_mm: thickness, price_per_m: price, sort_order: sort
+    })
+    document.getElementById(`cut-${service[0]}-name`).value = ''
+    document.getElementById(`cut-${service[0]}-price`).value = ''
+    document.getElementById(`cut-${service[0]}-sort`).value = ''
+    if (service === 'laser') document.getElementById('cut-l-thickness').value = ''
+    loadCuttingMaterials()
+  } catch (e) { showToast('Ошибка: ' + e.message) }
+}
+
+function findCuttingMaterial(id) {
+  return cuttingPlotter.find(m => m.id === id) || cuttingLaser.find(m => m.id === id)
+}
+
+async function editCuttingField(id, field, label) {
+  const m = findCuttingMaterial(id)
+  if (!m) return
+  const current = m[field] == null ? '' : String(m[field])
+  const value = prompt(`${label}:`, current)
+  if (value === null) return
+  let payload
+  if (field === 'name') payload = { name: value }
+  else if (field === 'thickness_mm') payload = { thickness_mm: value === '' ? null : +value }
+  else payload = { [field]: +value }
+  try {
+    await api('PUT', '/api/cutting-materials/' + id, payload)
+    loadCuttingMaterials()
+  } catch (e) { showToast('Ошибка: ' + e.message) }
+}
+
+async function toggleCuttingActive(id) {
+  const m = findCuttingMaterial(id)
+  if (!m) return
+  if (m.is_active && !confirm(`Скрыть «${m.name}»? Менеджеры перестанут видеть его в калькуляторе.`)) return
+  try {
+    if (m.is_active) {
+      await api('DELETE', '/api/cutting-materials/' + id)
+    } else {
+      await api('PUT', '/api/cutting-materials/' + id, { is_active: 1 })
+    }
+    loadCuttingMaterials()
   } catch (e) { showToast('Ошибка: ' + e.message) }
 }
 
