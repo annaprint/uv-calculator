@@ -54,6 +54,7 @@
   <div class="nav-item" onclick="showSection('tiers', this)">📐 Ступени листовой</div>
   <div class="nav-item" onclick="showSection('souvenir', this)">🎁 Сувенирная печать</div>
   <div class="nav-item" onclick="showSection('cutting', this)">✂️ Высечка</div>
+  <div class="nav-item" onclick="showSection('keychain', this)">🔑 Цены брелки</div>
   <div class="nav-item" onclick="showSection('catalog', this)">📦 Каталог товаров</div>
   <div class="nav-item" onclick="showSection('quotes', this)">📋 Сохранённые КП</div>
   <div class="nav-item" onclick="showSection('clients', this)">👤 Клиенты</div>
@@ -110,10 +111,11 @@
       <input type="number" id="souv-100" placeholder="от 100" style="width:75px;" min="0">
       <input type="number" id="souv-500" placeholder="от 500" style="width:75px;" min="0">
       <input type="number" id="souv-1000" placeholder="от 1000" style="width:80px;" min="0">
+      <input type="number" id="souv-min-order" placeholder="мин. заказ" style="width:90px;" min="0">
       <button class="btn btn-primary" onclick="addSouvenirPrice()">+ Добавить</button>
     </div>
     <table style="font-size:12px;">
-      <thead><tr><th>Тип товара</th><th>до 29</th><th>от 30</th><th>от 100</th><th>от 500</th><th>от 1000</th><th></th></tr></thead>
+      <thead><tr><th>Тип товара</th><th>до 29</th><th>от 30</th><th>от 100</th><th>от 500</th><th>от 1000</th><th>Минимум заказа</th><th></th></tr></thead>
       <tbody id="souvenir-body"></tbody>
     </table>
     <button class="btn btn-success save-btn" onclick="saveSouvenir()">💾 Сохранить изменения</button>
@@ -148,6 +150,13 @@
       <thead><tr><th>Материал</th><th>Толщ. (мм)</th><th>₽/м.п.</th><th>Сорт.</th><th>Статус</th><th>Действия</th></tr></thead>
       <tbody id="cutting-laser-body"></tbody>
     </table>
+  </div>
+
+  <!-- Keychain Prices -->
+  <div id="sec-keychain" class="section">
+    <h2>Цены на брелки</h2>
+    <p class="hint">Матрица цен ₽/шт по типам акрила, размерам и тиражным ступеням. Изменение в ячейке сохраняется автоматически.</p>
+    <div id="keychain-tables"></div>
   </div>
 
   <!-- Catalog -->

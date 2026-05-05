@@ -10,6 +10,7 @@ function showSection(name, el) {
   if (name === 'tiers') loadTiers()
   if (name === 'souvenir') loadSouvenir()
   if (name === 'cutting') loadCuttingMaterials()
+  if (name === 'keychain') loadKeychainPrices()
   if (name === 'catalog') loadCatalog()
   if (name === 'quotes') loadQuotes()
   if (name === 'clients') loadClients()
@@ -164,6 +165,7 @@ function renderSouvenir() {
       <td><input type="number" value="${p.qty_from_100}"  onchange="souvenirPrices[${i}].qty_from_100=+this.value"  style="width:70px;"></td>
       <td><input type="number" value="${p.qty_from_500}"  onchange="souvenirPrices[${i}].qty_from_500=+this.value"  style="width:70px;"></td>
       <td><input type="number" value="${p.qty_from_1000}" onchange="souvenirPrices[${i}].qty_from_1000=+this.value" style="width:75px;"></td>
+      <td><input type="number" value="${p.min_order ?? 0}" onchange="souvenirPrices[${i}].min_order=+this.value" style="width:80px;" min="0"></td>
       <td><button class="btn-danger" onclick="deleteSouvenir(${p.id},${i})">✕</button></td>
     </tr>`).join('')
 }
@@ -175,13 +177,14 @@ async function addSouvenirPrice() {
     qty_from_30:   +document.getElementById('souv-30').value,
     qty_from_100:  +document.getElementById('souv-100').value,
     qty_from_500:  +document.getElementById('souv-500').value,
-    qty_from_1000: +document.getElementById('souv-1000').value
+    qty_from_1000: +document.getElementById('souv-1000').value,
+    min_order:     +document.getElementById('souv-min-order').value || 0
   }
   if (!vals.product_type) return alert('Введите тип товара')
   try {
     const p = await api('POST', '/api/souvenir-prices', vals)
     souvenirPrices.push(p)
-    ;['souv-type','souv-29','souv-30','souv-100','souv-500','souv-1000'].forEach(id => document.getElementById(id).value = '')
+    ;['souv-type','souv-29','souv-30','souv-100','souv-500','souv-1000','souv-min-order'].forEach(id => document.getElementById(id).value = '')
     renderSouvenir()
   } catch (e) { showToast('Ошибка: ' + e.message) }
 }
@@ -201,6 +204,62 @@ async function saveSouvenir() {
       await api('PUT', '/api/souvenir-prices/' + p.id, p)
     }
     showToast()
+  } catch (e) { showToast('Ошибка: ' + e.message) }
+}
+
+// ── Keychain Prices ──────────────────────────────────────────────────────
+const KEYCHAIN_QTY_LABELS = {
+  1:   '1–9 шт',
+  10:  '10–99 шт',
+  100: '100–499 шт',
+  500: '500–1000 шт'
+}
+
+async function loadKeychainPrices() {
+  try {
+    const rows = await api('GET', '/api/keychain-prices')
+    renderKeychainPrices(rows)
+  } catch (e) { showToast('Ошибка: ' + e.message) }
+}
+
+function renderKeychainPrices(rows) {
+  const byType = new Map()
+  for (const r of rows) {
+    if (!byType.has(r.acrylic_type)) byType.set(r.acrylic_type, [])
+    byType.get(r.acrylic_type).push(r)
+  }
+  const sizes = [...new Set(rows.map(r => r.size_max_cm))].sort((a, b) => a - b)
+  const qtyTiers = [...new Set(rows.map(r => r.qty_min))].sort((a, b) => a - b)
+
+  const container = document.getElementById('keychain-tables')
+  const html = []
+  for (const [type, list] of byType) {
+    const lookup = new Map(list.map(r => [`${r.size_max_cm}_${r.qty_min}`, r]))
+    html.push(`<h3 style="margin:16px 0 8px;font-size:14px;">${esc(type)}</h3>`)
+    html.push('<table style="font-size:12px;"><thead><tr><th>Тираж</th>')
+    for (const s of sizes) html.push(`<th>до ${s} см</th>`)
+    html.push('</tr></thead><tbody>')
+    for (const q of qtyTiers) {
+      html.push(`<tr><td>${esc(KEYCHAIN_QTY_LABELS[q] || q)}</td>`)
+      for (const s of sizes) {
+        const row = lookup.get(`${s}_${q}`)
+        if (row) {
+          html.push(`<td><input type="number" min="0" data-id="${row.id}" value="${row.price_per_piece}" style="width:80px;" onchange="updateKeychainPrice(${row.id}, this.value)"></td>`)
+        } else {
+          html.push('<td>—</td>')
+        }
+      }
+      html.push('</tr>')
+    }
+    html.push('</tbody></table>')
+  }
+  container.innerHTML = html.join('')
+}
+
+async function updateKeychainPrice(id, value) {
+  try {
+    await api('PUT', '/api/keychain-prices/' + id, { price_per_piece: Number(value) })
+    showToast('Сохранено ✓')
   } catch (e) { showToast('Ошибка: ' + e.message) }
 }
 
@@ -244,7 +303,22 @@ async function importCatalog(input) {
     const res = await fetch('/api/catalog/import', { method: 'POST', body: fd })
     if (!res.ok) { showToast('Ошибка импорта: ' + (await res.text())); return }
     const data = await res.json()
-    document.getElementById('import-info').textContent = `Импортировано: ${data.imported} товаров · ${new Date().toLocaleDateString('ru-RU')}`
+    const unlinked = data.unlinked || []
+    const lines = [
+      `✅ Загружено: ${data.imported}`,
+      `🔗 Привязано к типу печати: ${data.linked}`,
+      `⚠️ Без типа печати: ${unlinked.length}`
+    ]
+    if (unlinked.length) {
+      lines.push('', 'Первые 10 непривязанных:')
+      for (const u of unlinked.slice(0, 10)) {
+        lines.push(`${u.article} — ${u.name} (тип: «${u.raw_type}»)`)
+      }
+    }
+    const summary = lines.join('\n')
+    alert(summary)
+    document.getElementById('import-info').textContent =
+      `Импортировано: ${data.imported} · Привязано: ${data.linked} · Без типа: ${unlinked.length} · ${new Date().toLocaleDateString('ru-RU')}`
     loadCatalog()
   } catch (e) { showToast('Ошибка импорта: ' + e.message) }
 }
