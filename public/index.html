@@ -82,6 +82,7 @@
   <div class="tabs">
     <div class="tab active" onclick="switchTab('sheet', this)">📄 Листовая продукция</div>
     <div class="tab" onclick="switchTab('souvenir', this)">🎁 Сувенирная продукция</div>
+    <div class="tab" onclick="switchTab('cutting', this)">✂️ Высечка</div>
   </div>
 
   <div class="card">
@@ -220,6 +221,63 @@
         <div class="result-total"><span>Итого</span><span id="souv-total"></span></div>
         <div class="result-per-unit" id="souv-per-unit"></div>
         <button class="kp-btn" onclick="generateKP('souvenir')">📋 Сформировать КП</button>
+      </div>
+    </div>
+
+    <!-- ── CUTTING TAB ── -->
+    <div id="tab-cutting" class="tab-content">
+      <div class="field">
+        <label>Услуга</label>
+        <div class="urgency">
+          <div class="urg-btn active" id="cut-svc-plotter" onclick="setCuttingService('plotter')">
+            🔪 Плоттер <small>контурная резка плёнок</small>
+          </div>
+          <div class="urg-btn" id="cut-svc-laser" onclick="setCuttingService('laser')">
+            🔥 Лазер <small>картон, акрил, фанера</small>
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Материал</label>
+        <select id="cut-material">
+          <option value="">Загрузка...</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Длина реза, м</label>
+        <input type="number" id="cut-length" placeholder="12.5" min="0.1" step="0.1">
+        <p style="font-size:11px;color:#94a3b8;margin-top:4px;">Длину контура смотрите в макете (Illustrator / CorelDraw показывают суммарную длину)</p>
+      </div>
+
+      <div class="field options">
+        <label style="text-transform:uppercase;font-size:12px;font-weight:600;color:#64748b;">Опции</label>
+        <label><input type="checkbox" id="cut-complex"> Сложный контур <span class="badge">+20%</span></label>
+      </div>
+
+      <div class="field">
+        <label>Срочность</label>
+        <div class="urgency">
+          <div class="urg-btn active" id="cut-standard" onclick="setUrgency('cut','standard')">
+            Стандарт <small>3–5 рабочих дней</small>
+          </div>
+          <div class="urg-btn urgent" id="cut-urgent" onclick="setUrgency('cut','urgent')">
+            Срочно <small>1–2 дня · +30%</small>
+          </div>
+        </div>
+      </div>
+
+      <button class="calc-btn" onclick="calcCuttingOrder()">Рассчитать →</button>
+
+      <div class="error-box" id="cut-error"></div>
+
+      <div class="result-box" id="cut-result">
+        <div class="result-title">Расчёт стоимости</div>
+        <div id="cut-breakdown"></div>
+        <div class="result-total"><span>Итого</span><span id="cut-total"></span></div>
+        <div class="result-per-unit" id="cut-per-unit"></div>
+        <button class="kp-btn" onclick="generateKP('cutting')">📋 Сформировать КП</button>
       </div>
     </div>
 

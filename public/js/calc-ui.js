@@ -5,6 +5,11 @@ let sheetTiers = []
 let allCatalogItems = []
 let lastSheetResult = null
 let lastSouvResult = null
+let cuttingPlotterMats = []
+let cuttingLaserMats = []
+let cuttingMinOrder = 1500
+let cuttingService = 'plotter'   // current selected service ('plotter' | 'laser')
+let lastCuttingResult = null
 
 async function api(method, path, body) {
   const res = await fetch(path, {
@@ -28,14 +33,21 @@ function esc(s) {
 
 // ── Init ──────────────────────────────────────────────────────────────────
 async function init() {
-  const [materials, tiers, catalog] = await Promise.all([
+  const [materials, tiers, catalog, plotter, laser, settings] = await Promise.all([
     api('GET', '/api/materials'),
     api('GET', '/api/sheet-tiers'),
-    api('GET', '/api/catalog')
+    api('GET', '/api/catalog'),
+    api('GET', '/api/cutting-materials?service=plotter'),
+    api('GET', '/api/cutting-materials?service=laser'),
+    api('GET', '/api/company-settings')
   ])
   sheetMaterials = materials
   sheetTiers = tiers
   allCatalogItems = catalog
+  cuttingPlotterMats = plotter
+  cuttingLaserMats = laser
+  cuttingMinOrder = Number(settings.cutting_min_order) || 1500
+  renderCuttingMaterialSelect()
 
   // Populate material select
   const matSel = document.getElementById('sheet-material')
@@ -192,6 +204,67 @@ function showSouvResult(r, p) {
   document.getElementById('souv-result').classList.add('show')
 }
 
+// ── Cutting ───────────────────────────────────────────────────────────────
+function setCuttingService(svc) {
+  cuttingService = svc
+  document.getElementById('cut-svc-plotter').classList.toggle('active', svc === 'plotter')
+  document.getElementById('cut-svc-laser').classList.toggle('active',   svc === 'laser')
+  renderCuttingMaterialSelect()
+}
+
+function renderCuttingMaterialSelect() {
+  const sel = document.getElementById('cut-material')
+  if (!sel) return
+  const list = cuttingService === 'plotter' ? cuttingPlotterMats : cuttingLaserMats
+  sel.innerHTML = '<option value="">Выберите материал...</option>' +
+    list.map(m => {
+      const label = m.thickness_mm != null
+        ? `${esc(m.name)} ${m.thickness_mm} мм (${fmt(m.price_per_m)}/м.п.)`
+        : `${esc(m.name)} (${fmt(m.price_per_m)}/м.п.)`
+      return `<option value="${m.id}">${label}</option>`
+    }).join('')
+}
+
+async function calcCuttingOrder() {
+  hideResult('cut')
+  const materialId = +document.getElementById('cut-material').value || null
+  const lengthM    = +document.getElementById('cut-length').value
+  const complexContour = document.getElementById('cut-complex').checked
+  const urgent     = isUrgent('cut')
+
+  if (!materialId)        return showError('cut', 'Выберите материал')
+  if (!lengthM || lengthM <= 0) return showError('cut', 'Введите длину реза в метрах')
+
+  try {
+    const res = await api('POST', '/api/calc/cutting', { materialId, lengthM, urgent, complexContour })
+    lastCuttingResult = {
+      params: { service: cuttingService, materialId, lengthM, urgent, complexContour },
+      result: res
+    }
+    showCuttingResult(res, lastCuttingResult.params)
+  } catch (e) {
+    showError('cut', e.message)
+  }
+}
+
+function showCuttingResult(r, p) {
+  const thicknessLabel = r.thicknessMm != null ? ` ${r.thicknessMm} мм` : ''
+  let rows = `<div class="result-row"><span>${esc(r.materialName)}${thicknessLabel} · ${r.lengthM} м.п. × ${fmt(r.pricePerM)}/м.п.</span><span>${fmt(r.pricePerM * r.lengthM)}</span></div>`
+  if (p.complexContour) rows += `<div class="result-row"><span>Сложный контур (×1.20)</span><span>+${fmt(r.pricePerM * r.lengthM * 0.20)}</span></div>`
+  if (p.urgent) {
+    const beforeUrgent = r.pricePerM * r.lengthM * (p.complexContour ? 1.20 : 1)
+    rows += `<div class="result-row"><span>Срочный (×1.30)</span><span>+${fmt(beforeUrgent * 0.30)}</span></div>`
+  }
+  if (r.minOrderApplied) {
+    rows += `<div class="result-row"><span>Базовый расчёт</span><span>${fmt(r.base)}</span></div>`
+    rows += `<div class="result-row" style="color:#f59e0b;"><span>Применён минимум заказа</span><span>${fmt(r.minOrder)}</span></div>`
+  }
+  document.getElementById('cut-breakdown').innerHTML = rows
+  document.getElementById('cut-total').textContent = fmt(r.total)
+  document.getElementById('cut-per-unit').textContent = ''
+  document.getElementById('cut-result').classList.add('show')
+}
+
 // ── KP generation ─────────────────────────────────────────────────────────
 function buildKPText(type, data) {
   const d = new Date().toLocaleDateString('ru-RU')
@@ -207,6 +280,17 @@ function buildKPText(type, data) {
 ${p.uvVarnish ? 'Опция: УФ-лак (+30%)\n' : ''}${p.reliefLayers > 0 ? `Опция: рельефный белый (${p.reliefLayers} сл.)\n` : ''}${p.urgent ? 'Срочность: 1–2 дня (+30%)\n' : ''}
 Стоимость надпечатки: ${fmt(r.printCost)}${!p.clientMaterial ? `\nСтоимость материала: ${fmt(r.materialCost)}` : ''}
 Итого: ${fmt(r.total)} (${fmt(r.pricePerUnit)}/шт.)`
+  } else if (type === 'cutting') {
+    const { params: p, result: r } = data
+    const svcLabel = r.service === 'laser' ? 'лазере' : 'плоттере'
+    const thickness = r.thicknessMm != null ? ` ${r.thicknessMm} мм` : ''
+    return `КП на высечку (на ${svcLabel})
+Дата: ${d}
+Материал: ${r.materialName}${thickness}
+Длина реза: ${r.lengthM} м.п.
+Ставка: ${fmt(r.pricePerM)}/м.п.
+${p.complexContour ? 'Опция: сложный контур (+20%)\n' : ''}${p.urgent ? 'Срочность: 1–2 дня (+30%)\n' : ''}${r.minOrderApplied ? `Применён минимум заказа: ${fmt(r.minOrder)}\n` : ''}
+Итого: ${fmt(r.total)}`
   } else {
     const { params: p, result: r } = data
     return `КП на УФ-печать (сувенирная продукция)
@@ -219,11 +303,17 @@ ${p.uvVarnish ? 'Опция: УФ-лак (+30%)\n' : ''}${p.reliefLayers > 0 ? `
 }
 
 async function generateKP(type) {
-  const data = type === 'sheet' ? lastSheetResult : lastSouvResult
-  if (!data) return
+  let data, quoteType
+  if (type === 'sheet')         { data = lastSheetResult;   quoteType = 'sheet' }
+  else if (type === 'cutting')  {
+    data = lastCuttingResult
+    quoteType = data ? `cutting_${data.params.service}` : null
+  }
+  else                          { data = lastSouvResult;    quoteType = 'souvenir' }
+  if (!data || !quoteType) return
   const kp_text = buildKPText(type, data)
   openSaveQuoteModal({
-    type: type === 'sheet' ? 'sheet' : 'souvenir',
+    type: quoteType,
     params: data.params,
     result: data.result,
     kp_text
