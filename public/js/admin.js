@@ -609,10 +609,14 @@ function renderCuttingTable(service) {
   }).join('')
 }
 
+const CUTTING_PREFIX = { plotter: 'p', laser: 'l' }
+
 async function addCuttingMaterial(service) {
-  const name  = document.getElementById(`cut-${service[0]}-name`).value.trim()
-  const price = +document.getElementById(`cut-${service[0]}-price`).value
-  const sort  = +document.getElementById(`cut-${service[0]}-sort`).value || 0
+  const p = CUTTING_PREFIX[service]
+  if (!p) return
+  const name  = document.getElementById(`cut-${p}-name`).value.trim()
+  const price = +document.getElementById(`cut-${p}-price`).value
+  const sort  = +document.getElementById(`cut-${p}-sort`).value || 0
   const thickness = service === 'laser'
     ? (document.getElementById('cut-l-thickness').value === '' ? null : +document.getElementById('cut-l-thickness').value)
     : null
@@ -621,9 +625,9 @@ async function addCuttingMaterial(service) {
     await api('POST', '/api/cutting-materials', {
       service, name, thickness_mm: thickness, price_per_m: price, sort_order: sort
     })
-    document.getElementById(`cut-${service[0]}-name`).value = ''
-    document.getElementById(`cut-${service[0]}-price`).value = ''
-    document.getElementById(`cut-${service[0]}-sort`).value = ''
+    document.getElementById(`cut-${p}-name`).value = ''
+    document.getElementById(`cut-${p}-price`).value = ''
+    document.getElementById(`cut-${p}-sort`).value = ''
     if (service === 'laser') document.getElementById('cut-l-thickness').value = ''
     loadCuttingMaterials()
   } catch (e) { showToast('Ошибка: ' + e.message) }
