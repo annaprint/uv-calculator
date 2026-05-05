@@ -194,8 +194,9 @@ const migrations = [
 
       // 5. Recreate quotes table to extend type CHECK constraint.
       // SQLite cannot ALTER a CHECK; we rebuild the table.
-      // Foreign keys are deferred for the duration of this transaction by SQLite
-      // because the parent rows (users, clients) are unchanged.
+      // Safe without disabling FKs: no other table FK-references quotes (only
+      // outgoing FKs from quotes → users/clients), and the parent tables are
+      // untouched, so all migrated user_id/client_id values still resolve.
       db.exec(`
         CREATE TABLE quotes_new (
           id          INTEGER PRIMARY KEY AUTOINCREMENT,
