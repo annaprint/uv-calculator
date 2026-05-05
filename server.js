@@ -6,7 +6,7 @@ const multer = require('multer')
 const XLSX = require('xlsx')
 const rateLimit = require('express-rate-limit')
 const { createDb } = require('./db')
-const { calcSheet, calcSouvenir } = require('./calc')
+const { calcSheet, calcSouvenir, calcCutting } = require('./calc')
 const { hashPassword, verifyPassword, normalizeEmail, validatePassword, buildSessionMiddleware, loginUser, loadUser, requireAuth, requireAdmin } = require('./auth')
 const { generateQuotePdf } = require('./pdf')
 const { createBackup } = require('./backup')
@@ -249,6 +249,84 @@ app.put('/api/souvenir-prices/:id', requireAdmin, (req, res) => {
 app.delete('/api/souvenir-prices/:id', requireAdmin, (req, res) => {
   db.prepare('DELETE FROM souvenir_prices WHERE id=?').run(req.params.id)
   res.json({ ok: true })
+})
+
+// ── Cutting materials (plotter + laser) ─────────────────────────────────
+function validateService(s) {
+  return s === 'plotter' || s === 'laser'
+}
+
+app.get('/api/cutting-materials', requireAuth, (req, res) => {
+  const service = req.query.service
+  if (!validateService(service)) return res.status(400).json({ error: 'service must be plotter or laser' })
+  const rows = db.prepare(
+    'SELECT * FROM cutting_materials WHERE service=? AND is_active=1 ORDER BY sort_order, id'
+  ).all(service)
+  res.json(rows)
+})
+
+app.get('/api/cutting-materials/all', requireAdmin, (req, res) => {
+  const service = req.query.service
+  if (!validateService(service)) return res.status(400).json({ error: 'service must be plotter or laser' })
+  const rows = db.prepare(
+    'SELECT * FROM cutting_materials WHERE service=? ORDER BY sort_order, id'
+  ).all(service)
+  res.json(rows)
+})
+
+app.post('/api/cutting-materials', requireAdmin, (req, res) => {
+  const { service, name, thickness_mm = null, price_per_m, sort_order = 0 } = req.body || {}
+  if (!validateService(service)) return res.status(400).json({ error: 'service must be plotter or laser' })
+  if (!name || typeof name !== 'string') return res.status(400).json({ error: 'name required' })
+  if (!Number.isFinite(+price_per_m) || +price_per_m < 0) return res.status(400).json({ error: 'price_per_m must be a non-negative number' })
+  try {
+    const info = db.prepare(
+      'INSERT INTO cutting_materials (service, name, thickness_mm, price_per_m, sort_order) VALUES (?,?,?,?,?)'
+    ).run(service, name, thickness_mm, +price_per_m, +sort_order)
+    res.status(201).json(db.prepare('SELECT * FROM cutting_materials WHERE id=?').get(info.lastInsertRowid))
+  } catch (e) {
+    res.status(400).json({ error: e.message })
+  }
+})
+
+app.put('/api/cutting-materials/:id', requireAdmin, (req, res) => {
+  const existing = db.prepare('SELECT * FROM cutting_materials WHERE id=?').get(req.params.id)
+  if (!existing) return res.status(404).json({ error: 'Not found' })
+  const next = { ...existing, ...req.body, updated_at: new Date().toISOString() }
+  // Whitelist editable fields explicitly
+  db.prepare(
+    `UPDATE cutting_materials SET
+       name=?, thickness_mm=?, price_per_m=?, sort_order=?, is_active=?, updated_at=datetime('now')
+     WHERE id=?`
+  ).run(
+    next.name,
+    next.thickness_mm,
+    +next.price_per_m,
+    +next.sort_order,
+    next.is_active ? 1 : 0,
+    req.params.id
+  )
+  res.json(db.prepare('SELECT * FROM cutting_materials WHERE id=?').get(req.params.id))
+})
+
+app.delete('/api/cutting-materials/:id', requireAdmin, (req, res) => {
+  const info = db.prepare('UPDATE cutting_materials SET is_active=0 WHERE id=?').run(req.params.id)
+  if (info.changes === 0) return res.status(404).json({ error: 'Not found' })
+  res.json({ ok: true })
+})
+
+app.post('/api/calc/cutting', requireAuth, (req, res) => {
+  try {
+    const { materialId } = req.body || {}
+    const material = db.prepare('SELECT * FROM cutting_materials WHERE id=? AND is_active=1').get(materialId)
+    if (!material) return res.status(400).json({ error: 'Material not found' })
+    const settingsRows = db.prepare('SELECT key, value FROM company_settings').all()
+    const settings = Object.fromEntries(settingsRows.map(r => [r.key, r.value]))
+    const result = calcCutting(req.body, [material], settings)
+    res.json(result)
+  } catch (e) {
+    res.status(400).json({ error: e.message })
+  }
 })
 
 // ── Catalog ───────────────────────────────────────────────────────────────
