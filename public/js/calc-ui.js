@@ -7,7 +7,6 @@ let lastSheetResult = null
 let lastSouvResult = null
 let cuttingPlotterMats = []
 let cuttingLaserMats = []
-let cuttingMinOrder = 1500
 let cuttingService = 'plotter'   // current selected service ('plotter' | 'laser')
 let lastCuttingResult = null
 
@@ -33,20 +32,18 @@ function esc(s) {
 
 // ── Init ──────────────────────────────────────────────────────────────────
 async function init() {
-  const [materials, tiers, catalog, plotter, laser, settings] = await Promise.all([
+  const [materials, tiers, catalog, plotter, laser] = await Promise.all([
     api('GET', '/api/materials'),
     api('GET', '/api/sheet-tiers'),
     api('GET', '/api/catalog'),
     api('GET', '/api/cutting-materials?service=plotter'),
-    api('GET', '/api/cutting-materials?service=laser'),
-    api('GET', '/api/company-settings')
+    api('GET', '/api/cutting-materials?service=laser')
   ])
   sheetMaterials = materials
   sheetTiers = tiers
   allCatalogItems = catalog
   cuttingPlotterMats = plotter
   cuttingLaserMats = laser
-  cuttingMinOrder = Number(settings.cutting_min_order) || 1500
   renderCuttingMaterialSelect()
 
   // Populate material select
@@ -248,11 +245,12 @@ async function calcCuttingOrder() {
 }
 
 function showCuttingResult(r, p) {
+  const rawBase = r.pricePerM * r.lengthM
   const thicknessLabel = r.thicknessMm != null ? ` ${r.thicknessMm} мм` : ''
-  let rows = `<div class="result-row"><span>${esc(r.materialName)}${thicknessLabel} · ${r.lengthM} м.п. × ${fmt(r.pricePerM)}/м.п.</span><span>${fmt(r.pricePerM * r.lengthM)}</span></div>`
-  if (p.complexContour) rows += `<div class="result-row"><span>Сложный контур (×1.20)</span><span>+${fmt(r.pricePerM * r.lengthM * 0.20)}</span></div>`
+  let rows = `<div class="result-row"><span>${esc(r.materialName)}${thicknessLabel} · ${r.lengthM} м.п. × ${fmt(r.pricePerM)}/м.п.</span><span>${fmt(rawBase)}</span></div>`
+  if (p.complexContour) rows += `<div class="result-row"><span>Сложный контур (×1.20)</span><span>+${fmt(rawBase * 0.20)}</span></div>`
   if (p.urgent) {
-    const beforeUrgent = r.pricePerM * r.lengthM * (p.complexContour ? 1.20 : 1)
+    const beforeUrgent = rawBase * (p.complexContour ? 1.20 : 1)
     rows += `<div class="result-row"><span>Срочный (×1.30)</span><span>+${fmt(beforeUrgent * 0.30)}</span></div>`
   }
   if (r.minOrderApplied) {
