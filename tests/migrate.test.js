@@ -128,3 +128,98 @@ describe('migration v4 — quotes.total + backfill', () => {
     expect(rows[1].total).toBeNull()
   })
 })
+
+describe('migration v6 — cutting_materials + quotes type expansion', () => {
+  test('creates cutting_materials table with required columns', () => {
+    const db = createDb(':memory:')
+    const cols = db.prepare("PRAGMA table_info(cutting_materials)").all().map(c => c.name)
+    expect(cols).toEqual(expect.arrayContaining(
+      ['id', 'service', 'name', 'thickness_mm', 'price_per_m', 'sort_order', 'is_active', 'created_at', 'updated_at']
+    ))
+  })
+
+  test('cutting_materials.service rejects values outside plotter|laser', () => {
+    const db = createDb(':memory:')
+    expect(() =>
+      db.prepare("INSERT INTO cutting_materials (service, name, price_per_m) VALUES (?,?,?)")
+        .run('milling', 'Test', 10)
+    ).toThrow(/CHECK/)
+  })
+
+  test('cutting_materials uniqueness on (service, name, thickness)', () => {
+    const db = createDb(':memory:')
+    // Use thickness=7 which is not in the seed data, so the first insert succeeds.
+    db.prepare("INSERT INTO cutting_materials (service, name, thickness_mm, price_per_m) VALUES (?,?,?,?)")
+      .run('laser', 'Акрил', 7, 90)
+    expect(() =>
+      db.prepare("INSERT INTO cutting_materials (service, name, thickness_mm, price_per_m) VALUES (?,?,?,?)")
+        .run('laser', 'Акрил', 7, 100)
+    ).toThrow(/UNIQUE/)
+  })
+
+  test('plotter materials seeded (7 items, all active, NULL thickness)', () => {
+    const db = createDb(':memory:')
+    const rows = db.prepare("SELECT name, thickness_mm, price_per_m FROM cutting_materials WHERE service='plotter' ORDER BY sort_order, id").all()
+    expect(rows).toHaveLength(7)
+    expect(rows.every(r => r.thickness_mm === null)).toBe(true)
+    const oracal = rows.find(r => r.name === 'Oracal')
+    expect(oracal.price_per_m).toBe(30)
+  })
+
+  test('laser materials seeded (13 items, with thickness)', () => {
+    const db = createDb(':memory:')
+    const rows = db.prepare("SELECT name, thickness_mm, price_per_m FROM cutting_materials WHERE service='laser' ORDER BY sort_order, id").all()
+    expect(rows).toHaveLength(13)
+    const acryl5 = rows.find(r => r.name === 'Акрил' && r.thickness_mm === 5)
+    expect(acryl5.price_per_m).toBe(90)
+    const fetr = rows.find(r => r.name === 'Фетр/кожа')
+    expect(fetr.thickness_mm).toBeNull()
+    expect(fetr.price_per_m).toBe(40)
+  })
+
+  test('seeds cutting_min_order=1500 in company_settings', () => {
+    const db = createDb(':memory:')
+    const v = db.prepare("SELECT value FROM company_settings WHERE key='cutting_min_order'").get()
+    expect(v.value).toBe('1500')
+  })
+
+  test('quotes.type CHECK now accepts cutting_plotter and cutting_laser', () => {
+    const db = createDb(':memory:')
+    expect(() =>
+      db.prepare("INSERT INTO quotes (type, params, result, kp_text) VALUES (?,?,?,?)")
+        .run('cutting_plotter', '{}', '{}', 'kp')
+    ).not.toThrow()
+    expect(() =>
+      db.prepare("INSERT INTO quotes (type, params, result, kp_text) VALUES (?,?,?,?)")
+        .run('cutting_laser', '{}', '{}', 'kp')
+    ).not.toThrow()
+  })
+
+  test('quotes.type CHECK still rejects bogus types', () => {
+    const db = createDb(':memory:')
+    expect(() =>
+      db.prepare("INSERT INTO quotes (type, params, result, kp_text) VALUES (?,?,?,?)")
+        .run('bogus', '{}', '{}', 'kp')
+    ).toThrow(/CHECK/)
+  })
+
+  test('preserves existing quotes data when recreating the table', () => {
+    // Build DB at v5, insert a sheet quote, then advance to v6 and verify it survives.
+    const Database = require('better-sqlite3')
+    const { applyMigrations, migrations } = require('../db')
+    const db = new Database(':memory:')
+    db.pragma('foreign_keys = ON')
+    db.function('lower_ru', { deterministic: true }, s => String(s ?? '').toLowerCase())
+    for (const m of migrations.filter(m => m.version <= 5)) {
+      db.transaction(() => { m.up(db); db.pragma(`user_version=${m.version}`) })()
+    }
+    db.prepare("INSERT INTO quotes (type, params, result, kp_text, comment, total) VALUES (?,?,?,?,?,?)")
+      .run('sheet', '{"w":1}', '{"total":42}', 'kp1', 'note', 42)
+    applyMigrations(db)
+    const rows = db.prepare('SELECT type, comment, total FROM quotes').all()
+    expect(rows).toHaveLength(1)
+    expect(rows[0].type).toBe('sheet')
+    expect(rows[0].comment).toBe('note')
+    expect(rows[0].total).toBe(42)
+  })
+})

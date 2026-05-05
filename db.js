@@ -129,6 +129,93 @@ const migrations = [
       ins.run('signature',        'Анна, типография «Сити Принт»')
       ins.run('kp_validity_days', '7')
     }
+  },
+  {
+    version: 6,
+    up: (db) => {
+      // 1. New cutting_materials table
+      db.exec(`
+        CREATE TABLE cutting_materials (
+          id            INTEGER PRIMARY KEY AUTOINCREMENT,
+          service       TEXT    NOT NULL CHECK (service IN ('plotter', 'laser')),
+          name          TEXT    NOT NULL,
+          thickness_mm  REAL,
+          price_per_m   REAL    NOT NULL,
+          sort_order    INTEGER NOT NULL DEFAULT 0,
+          is_active     INTEGER NOT NULL DEFAULT 1,
+          created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+          updated_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX idx_cutting_materials_service
+          ON cutting_materials(service, is_active, sort_order);
+        CREATE UNIQUE INDEX uniq_cutting_materials
+          ON cutting_materials(service, name, COALESCE(thickness_mm, -1));
+      `)
+
+      // 2. Seed plotter materials (single rate per material; thickness = NULL)
+      const insP = db.prepare(
+        'INSERT INTO cutting_materials (service, name, thickness_mm, price_per_m, sort_order) VALUES (?,?,?,?,?)'
+      )
+      const PLOTTER = [
+        ['Oracal',                30, 10],
+        ['Самоклейка-бумага',     35, 20],
+        ['ПВХ-плёнка',            40, 30],
+        ['Магнитный винил',       60, 40],
+        ['Гофрокартон',           25, 50],
+        ['Каппа',                 50, 60],
+        ['ПВХ вспененный',        80, 70],
+      ]
+      for (const [name, price, sort] of PLOTTER) insP.run('plotter', name, null, price, sort)
+
+      // 3. Seed laser materials (rate per material × thickness)
+      const insL = db.prepare(
+        'INSERT INTO cutting_materials (service, name, thickness_mm, price_per_m, sort_order) VALUES (?,?,?,?,?)'
+      )
+      const LASER = [
+        ['Картон/бумага', 1,    20, 10],
+        ['Гофрокартон',   3,    30, 20],
+        ['Гофрокартон',   5,    45, 21],
+        ['Фетр/кожа',     null, 40, 30],
+        ['Каппа',         3,    30, 40],
+        ['Каппа',         5,    50, 41],
+        ['Акрил',         1,    25, 50],
+        ['Акрил',         3,    50, 51],
+        ['Акрил',         5,    90, 52],
+        ['Акрил',         10,  165, 53],
+        ['Фанера/МДФ',    3,    40, 60],
+        ['Фанера/МДФ',    5,    70, 61],
+        ['Фанера/МДФ',    10,  140, 62],
+      ]
+      for (const [name, t, price, sort] of LASER) insL.run('laser', name, t, price, sort)
+
+      // 4. Add cutting_min_order to company_settings
+      db.prepare('INSERT OR IGNORE INTO company_settings (key, value) VALUES (?, ?)')
+        .run('cutting_min_order', '1500')
+
+      // 5. Recreate quotes table to extend type CHECK constraint.
+      // SQLite cannot ALTER a CHECK; we rebuild the table.
+      // Foreign keys are deferred for the duration of this transaction by SQLite
+      // because the parent rows (users, clients) are unchanged.
+      db.exec(`
+        CREATE TABLE quotes_new (
+          id          INTEGER PRIMARY KEY AUTOINCREMENT,
+          created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+          type        TEXT NOT NULL CHECK(type IN ('sheet','souvenir','cutting_plotter','cutting_laser')),
+          params      TEXT NOT NULL,
+          result      TEXT NOT NULL,
+          kp_text     TEXT NOT NULL,
+          user_id     INTEGER REFERENCES users(id),
+          client_id   INTEGER REFERENCES clients(id),
+          comment     TEXT,
+          total       REAL,
+          pdf_path    TEXT
+        );
+        INSERT INTO quotes_new (id, created_at, type, params, result, kp_text, user_id, client_id, comment, total, pdf_path)
+          SELECT id, created_at, type, params, result, kp_text, user_id, client_id, comment, total, pdf_path FROM quotes;
+        DROP TABLE quotes;
+        ALTER TABLE quotes_new RENAME TO quotes;
+      `)
+    }
   }
 ]
 
