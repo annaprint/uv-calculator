@@ -277,12 +277,12 @@ app.get('/api/cutting-materials/all', requireAdmin, (req, res) => {
 app.post('/api/cutting-materials', requireAdmin, (req, res) => {
   const { service, name, thickness_mm = null, price_per_m, sort_order = 0 } = req.body || {}
   if (!validateService(service)) return res.status(400).json({ error: 'service must be plotter or laser' })
-  if (!name || typeof name !== 'string') return res.status(400).json({ error: 'name required' })
+  if (!name || typeof name !== 'string' || name.trim() === '') return res.status(400).json({ error: 'name required' })
   if (!Number.isFinite(+price_per_m) || +price_per_m < 0) return res.status(400).json({ error: 'price_per_m must be a non-negative number' })
   try {
     const info = db.prepare(
       'INSERT INTO cutting_materials (service, name, thickness_mm, price_per_m, sort_order) VALUES (?,?,?,?,?)'
-    ).run(service, name, thickness_mm, +price_per_m, +sort_order)
+    ).run(service, name.trim(), thickness_mm, +price_per_m, +sort_order)
     res.status(201).json(db.prepare('SELECT * FROM cutting_materials WHERE id=?').get(info.lastInsertRowid))
   } catch (e) {
     res.status(400).json({ error: e.message })
@@ -292,20 +292,35 @@ app.post('/api/cutting-materials', requireAdmin, (req, res) => {
 app.put('/api/cutting-materials/:id', requireAdmin, (req, res) => {
   const existing = db.prepare('SELECT * FROM cutting_materials WHERE id=?').get(req.params.id)
   if (!existing) return res.status(404).json({ error: 'Not found' })
-  const next = { ...existing, ...req.body, updated_at: new Date().toISOString() }
+  // Validate name if being updated
+  if ('name' in (req.body || {})) {
+    const n = req.body.name
+    if (typeof n !== 'string' || n.trim() === '') return res.status(400).json({ error: 'name must be a non-empty string' })
+    req.body.name = n.trim()
+  }
+  // Validate price_per_m if being updated
+  if ('price_per_m' in (req.body || {})) {
+    const p = req.body.price_per_m
+    if (p == null || !Number.isFinite(+p) || +p < 0) return res.status(400).json({ error: 'price_per_m must be a non-negative number' })
+  }
+  const next = { ...existing, ...req.body }
   // Whitelist editable fields explicitly
-  db.prepare(
-    `UPDATE cutting_materials SET
-       name=?, thickness_mm=?, price_per_m=?, sort_order=?, is_active=?, updated_at=datetime('now')
-     WHERE id=?`
-  ).run(
-    next.name,
-    next.thickness_mm,
-    +next.price_per_m,
-    +next.sort_order,
-    next.is_active ? 1 : 0,
-    req.params.id
-  )
+  try {
+    db.prepare(
+      `UPDATE cutting_materials SET
+         name=?, thickness_mm=?, price_per_m=?, sort_order=?, is_active=?, updated_at=datetime('now')
+       WHERE id=?`
+    ).run(
+      next.name,
+      next.thickness_mm,
+      +next.price_per_m,
+      +next.sort_order,
+      next.is_active ? 1 : 0,
+      req.params.id
+    )
+  } catch (e) {
+    return res.status(400).json({ error: e.message })
+  }
   res.json(db.prepare('SELECT * FROM cutting_materials WHERE id=?').get(req.params.id))
 })
 

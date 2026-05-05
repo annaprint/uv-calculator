@@ -114,6 +114,13 @@ describe('cutting-materials API', () => {
       })
       expect(r.status).toBe(403)
     })
+
+    test('rejects whitespace-only name', async () => {
+      const r = await adm.post('/api/cutting-materials').send({
+        service: 'plotter', name: '   ', price_per_m: 10
+      })
+      expect(r.status).toBe(400)
+    })
   })
 
   describe('PUT /api/cutting-materials/:id', () => {
@@ -136,6 +143,20 @@ describe('cutting-materials API', () => {
       const id = list.body[0].id
       const r = await mgr.put(`/api/cutting-materials/${id}`).send({ price_per_m: 10 })
       expect(r.status).toBe(403)
+    })
+
+    test('rejects empty name (returns 400, not 500)', async () => {
+      const list = await adm.get('/api/cutting-materials/all?service=plotter')
+      const id = list.body[0].id
+      const r = await adm.put(`/api/cutting-materials/${id}`).send({ name: '   ' })
+      expect(r.status).toBe(400)
+    })
+
+    test('rejects null price_per_m (returns 400, not 500)', async () => {
+      const list = await adm.get('/api/cutting-materials/all?service=plotter')
+      const id = list.body[0].id
+      const r = await adm.put(`/api/cutting-materials/${id}`).send({ price_per_m: null })
+      expect(r.status).toBe(400)
     })
   })
 
@@ -173,6 +194,13 @@ describe('cutting-materials API', () => {
       const r = await mgr.post('/api/calc/cutting').send({
         materialId: 99999, lengthM: 5
       })
+      expect(r.status).toBe(400)
+    })
+
+    test('returns 400 on invalid lengthM', async () => {
+      const list = await mgr.get('/api/cutting-materials?service=plotter')
+      const id = list.body[0].id
+      const r = await mgr.post('/api/calc/cutting').send({ materialId: id, lengthM: -1 })
       expect(r.status).toBe(400)
     })
 
