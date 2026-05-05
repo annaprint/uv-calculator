@@ -26,7 +26,7 @@ function showToast(msg = 'Сохранено ✓') {
   setTimeout(() => { t.style.display = 'none' }, 2500)
 }
 
-function cuttingTypeLabel(type) {
+function quoteTypeLabel(type) {
   if (type === 'sheet')           return '📄 Листовая'
   if (type === 'souvenir')        return '🎁 Сувенирная'
   if (type === 'cutting_plotter') return '✂️ Плоттер'
@@ -292,7 +292,7 @@ async function loadQuotes(reset = true) {
       tr.innerHTML = `
         <td style="font-size:12px;color:#94a3b8;">#${q.id}</td>
         <td style="font-size:12px;color:#64748b;">${q.created_at}</td>
-        <td>${cuttingTypeLabel(q.type)}</td>
+        <td>${quoteTypeLabel(q.type)}</td>
         <td style="font-weight:600;">${total}</td>
         <td style="font-size:12px;color:#94a3b8;">${esc(q.user_name || '—')}</td>
         <td style="font-size:12px;color:#94a3b8;">${esc(q.client_name || '—')}</td>
