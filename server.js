@@ -6,7 +6,7 @@ const multer = require('multer')
 const XLSX = require('xlsx')
 const rateLimit = require('express-rate-limit')
 const { createDb } = require('./db')
-const { calcSheet, calcSouvenir, calcCutting } = require('./calc')
+const { calcSheet, calcSouvenir, calcCutting, calcKeychain } = require('./calc')
 const { hashPassword, verifyPassword, normalizeEmail, validatePassword, buildSessionMiddleware, loginUser, loadUser, requireAuth, requireAdmin } = require('./auth')
 const { generateQuotePdf } = require('./pdf')
 const { createBackup } = require('./backup')
@@ -229,20 +229,20 @@ app.get('/api/souvenir-prices', requireAuth, (req, res) => {
 })
 
 app.post('/api/souvenir-prices', requireAdmin, (req, res) => {
-  const { product_type, qty_up_to_29, qty_from_30, qty_from_100, qty_from_500, qty_from_1000 } = req.body
+  const { product_type, qty_up_to_29, qty_from_30, qty_from_100, qty_from_500, qty_from_1000, min_order = 0 } = req.body
   if (!product_type || qty_up_to_29 == null || qty_from_30 == null || qty_from_100 == null || qty_from_500 == null || qty_from_1000 == null)
     return res.status(400).json({ error: 'product_type and all qty fields required' })
   const info = db.prepare(
-    'INSERT INTO souvenir_prices (product_type,qty_up_to_29,qty_from_30,qty_from_100,qty_from_500,qty_from_1000) VALUES (?,?,?,?,?,?)'
-  ).run(product_type, qty_up_to_29, qty_from_30, qty_from_100, qty_from_500, qty_from_1000)
+    'INSERT INTO souvenir_prices (product_type,qty_up_to_29,qty_from_30,qty_from_100,qty_from_500,qty_from_1000,min_order) VALUES (?,?,?,?,?,?,?)'
+  ).run(product_type, qty_up_to_29, qty_from_30, qty_from_100, qty_from_500, qty_from_1000, min_order)
   res.status(201).json(db.prepare('SELECT * FROM souvenir_prices WHERE id=?').get(info.lastInsertRowid))
 })
 
 app.put('/api/souvenir-prices/:id', requireAdmin, (req, res) => {
-  const { product_type, qty_up_to_29, qty_from_30, qty_from_100, qty_from_500, qty_from_1000 } = req.body
+  const { product_type, qty_up_to_29, qty_from_30, qty_from_100, qty_from_500, qty_from_1000, min_order } = req.body
   db.prepare(
-    'UPDATE souvenir_prices SET product_type=?,qty_up_to_29=?,qty_from_30=?,qty_from_100=?,qty_from_500=?,qty_from_1000=? WHERE id=?'
-  ).run(product_type, qty_up_to_29, qty_from_30, qty_from_100, qty_from_500, qty_from_1000, req.params.id)
+    'UPDATE souvenir_prices SET product_type=?,qty_up_to_29=?,qty_from_30=?,qty_from_100=?,qty_from_500=?,qty_from_1000=?,min_order=COALESCE(?, min_order) WHERE id=?'
+  ).run(product_type, qty_up_to_29, qty_from_30, qty_from_100, qty_from_500, qty_from_1000, min_order ?? null, req.params.id)
   res.json(db.prepare('SELECT * FROM souvenir_prices WHERE id=?').get(req.params.id))
 })
 
@@ -292,19 +292,16 @@ app.post('/api/cutting-materials', requireAdmin, (req, res) => {
 app.put('/api/cutting-materials/:id', requireAdmin, (req, res) => {
   const existing = db.prepare('SELECT * FROM cutting_materials WHERE id=?').get(req.params.id)
   if (!existing) return res.status(404).json({ error: 'Not found' })
-  // Validate name if being updated
   if ('name' in (req.body || {})) {
     const n = req.body.name
     if (typeof n !== 'string' || n.trim() === '') return res.status(400).json({ error: 'name must be a non-empty string' })
     req.body.name = n.trim()
   }
-  // Validate price_per_m if being updated
   if ('price_per_m' in (req.body || {})) {
     const p = req.body.price_per_m
     if (p == null || !Number.isFinite(+p) || +p < 0) return res.status(400).json({ error: 'price_per_m must be a non-negative number' })
   }
   const next = { ...existing, ...req.body }
-  // Whitelist editable fields explicitly
   try {
     db.prepare(
       `UPDATE cutting_materials SET
@@ -342,6 +339,23 @@ app.post('/api/calc/cutting', requireAuth, (req, res) => {
   } catch (e) {
     res.status(400).json({ error: e.message })
   }
+})
+
+// ── Keychain prices ──────────────────────────────────────────────────────
+app.get('/api/keychain-prices', requireAuth, (req, res) => {
+  res.json(db.prepare(
+    'SELECT * FROM keychain_prices ORDER BY acrylic_type, size_max_cm, qty_min'
+  ).all())
+})
+
+app.put('/api/keychain-prices/:id', requireAdmin, (req, res) => {
+  const { price_per_piece } = req.body
+  if (price_per_piece == null || Number(price_per_piece) < 0) {
+    return res.status(400).json({ error: 'price_per_piece must be >= 0' })
+  }
+  db.prepare('UPDATE keychain_prices SET price_per_piece=? WHERE id=?')
+    .run(Number(price_per_piece), req.params.id)
+  res.json(db.prepare('SELECT * FROM keychain_prices WHERE id=?').get(req.params.id))
 })
 
 // ── Catalog ───────────────────────────────────────────────────────────────
@@ -409,7 +423,18 @@ app.post('/api/calc/sheet', requireAuth, (req, res) => {
 app.post('/api/calc/souvenir', requireAuth, (req, res) => {
   try {
     const prices = db.prepare('SELECT * FROM souvenir_prices').all()
-    const result = calcSouvenir(req.body, prices)
+    const catalog = db.prepare('SELECT * FROM catalog_items').all()
+    const result = calcSouvenir(req.body, prices, catalog)
+    res.json(result)
+  } catch (e) {
+    res.status(400).json({ error: e.message })
+  }
+})
+
+app.post('/api/calc/keychain', requireAuth, (req, res) => {
+  try {
+    const prices = db.prepare('SELECT * FROM keychain_prices').all()
+    const result = calcKeychain(req.body, prices)
     res.json(result)
   } catch (e) {
     res.status(400).json({ error: e.message })
