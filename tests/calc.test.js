@@ -216,7 +216,6 @@ describe('calcCutting', () => {
       { materialId: 11, lengthM: 30, urgent: false, complexContour: false },
       LASER_MATS, SETTINGS_DEFAULT
     )
-    // 165 × 30 = 4950 > 1500
     expect(r.base).toBeCloseTo(4950)
     expect(r.minOrderApplied).toBe(false)
     expect(r.total).toBeCloseTo(4950)
@@ -232,7 +231,6 @@ describe('calcCutting', () => {
       { materialId: 1, lengthM: 5, urgent: false, complexContour: false },
       PLOTTER_MATS, SETTINGS_DEFAULT
     )
-    // 30 × 5 = 150 → bumped to 1500
     expect(r.base).toBeCloseTo(150)
     expect(r.minOrderApplied).toBe(true)
     expect(r.minOrder).toBe(1500)
@@ -244,7 +242,6 @@ describe('calcCutting', () => {
       { materialId: 11, lengthM: 30, urgent: false, complexContour: true },
       LASER_MATS, SETTINGS_DEFAULT
     )
-    // 4950 × 1.20 = 5940
     expect(r.total).toBeCloseTo(5940)
     expect(r.complexContour).toBe(true)
   })
@@ -254,7 +251,6 @@ describe('calcCutting', () => {
       { materialId: 11, lengthM: 30, urgent: true, complexContour: false },
       LASER_MATS, SETTINGS_DEFAULT
     )
-    // 4950 × 1.30 = 6435
     expect(r.total).toBeCloseTo(6435)
     expect(r.urgent).toBe(true)
   })
@@ -264,13 +260,10 @@ describe('calcCutting', () => {
       { materialId: 11, lengthM: 30, urgent: true, complexContour: true },
       LASER_MATS, SETTINGS_DEFAULT
     )
-    // 4950 × 1.20 × 1.30 = 7722  (NOT 4950 × (1 + 0.20 + 0.30) = 7425)
     expect(r.total).toBeCloseTo(7722)
   })
 
   test('minimum applied AFTER multipliers, not before', () => {
-    // Каппа 5мм, 12.5 м.п. → 50 × 12.5 = 625
-    // × 1.20 × 1.30 = 975 → still < 1500, so min applies
     const r = require('../calc').calcCutting(
       { materialId: 10, lengthM: 12.5, urgent: true, complexContour: true },
       LASER_MATS, SETTINGS_DEFAULT
@@ -318,5 +311,78 @@ describe('calcCutting', () => {
     expect(() =>
       require('../calc').calcCutting({ ...opts, lengthM: NaN }, PLOTTER_MATS, SETTINGS_DEFAULT)
     ).toThrow('Invalid length')
+  })
+})
+
+const KEYCHAIN_PRICES = [
+  { id: 1, acrylic_type: 'Прозрачный', size_max_cm: 3,  qty_min: 1,   price_per_piece: 80 },
+  { id: 2, acrylic_type: 'Прозрачный', size_max_cm: 6,  qty_min: 100, price_per_piece: 70 },
+  { id: 3, acrylic_type: 'Прозрачный', size_max_cm: 6,  qty_min: 500, price_per_piece: 62 },
+  { id: 4, acrylic_type: 'Прозрачный', size_max_cm: 10, qty_min: 1,   price_per_piece: 240 },
+  { id: 5, acrylic_type: 'Тонированный', size_max_cm: 4, qty_min: 10, price_per_piece: 72 }
+]
+
+describe('calcKeychain', () => {
+  const { calcKeychain } = require('../calc')
+
+  test('базовый расчёт: 5×3 см, 100 шт прозрачный → корзина «до 6», тир 100-499 = 70 ₽/шт', () => {
+    const r = calcKeychain(
+      { acrylicType: 'Прозрачный', longestSideCm: 5, qty: 100, urgent: false },
+      KEYCHAIN_PRICES
+    )
+    expect(r.sizeBucket).toBe(6)
+    expect(r.qtyTier).toBe(100)
+    expect(r.pricePerPiece).toBe(70)
+    expect(r.total).toBeCloseTo(7000)
+  })
+
+  test('размер ровно 3 см → корзина «до 3»', () => {
+    const r = calcKeychain(
+      { acrylicType: 'Прозрачный', longestSideCm: 3, qty: 5, urgent: false },
+      KEYCHAIN_PRICES
+    )
+    expect(r.sizeBucket).toBe(3)
+    expect(r.qtyTier).toBe(1)
+    expect(r.total).toBeCloseTo(400)
+  })
+
+  test('тираж 500 → тир 500-1000', () => {
+    const r = calcKeychain(
+      { acrylicType: 'Прозрачный', longestSideCm: 5, qty: 500, urgent: false },
+      KEYCHAIN_PRICES
+    )
+    expect(r.qtyTier).toBe(500)
+    expect(r.pricePerPiece).toBe(62)
+  })
+
+  test('срочность +30%', () => {
+    const r = calcKeychain(
+      { acrylicType: 'Прозрачный', longestSideCm: 5, qty: 100, urgent: true },
+      KEYCHAIN_PRICES
+    )
+    expect(r.total).toBeCloseTo(9100)
+  })
+
+  test('размер > 10 см → throw', () => {
+    expect(() => calcKeychain(
+      { acrylicType: 'Прозрачный', longestSideCm: 11, qty: 100, urgent: false },
+      KEYCHAIN_PRICES
+    )).toThrow('Size > 10 cm not supported')
+  })
+
+  test('тип акрила не найден → throw', () => {
+    expect(() => calcKeychain(
+      { acrylicType: 'Несуществующий', longestSideCm: 5, qty: 100, urgent: false },
+      KEYCHAIN_PRICES
+    )).toThrow('Price not found')
+  })
+
+  test('точная цена за штуку и pricePerUnit отражены', () => {
+    const r = calcKeychain(
+      { acrylicType: 'Прозрачный', longestSideCm: 5, qty: 100, urgent: true },
+      KEYCHAIN_PRICES
+    )
+    expect(r.pricePerPiece).toBe(70)
+    expect(r.pricePerUnit).toBeCloseTo(91)
   })
 })

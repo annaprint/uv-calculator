@@ -122,4 +122,36 @@ function calcCutting({ materialId, lengthM, urgent, complexContour }, materials,
   }
 }
 
-module.exports = { calcSheet, calcSouvenir, calcCutting }
+const KEYCHAIN_SIZE_BUCKETS = [3, 4, 6, 8, 10]
+const KEYCHAIN_QTY_TIERS = [1, 10, 100, 500]
+
+function calcKeychain({ acrylicType, longestSideCm, qty, urgent = false }, prices) {
+  const sizeBucket = KEYCHAIN_SIZE_BUCKETS.find(s => longestSideCm <= s)
+  if (!sizeBucket) throw new Error('Size > 10 cm not supported')
+
+  let qtyTier = KEYCHAIN_QTY_TIERS[0]
+  for (const t of KEYCHAIN_QTY_TIERS) if (qty >= t) qtyTier = t
+
+  const row = prices.find(p =>
+    p.acrylic_type === acrylicType &&
+    p.size_max_cm === sizeBucket &&
+    p.qty_min === qtyTier
+  )
+  if (!row) throw new Error('Price not found')
+
+  let total = row.price_per_piece * qty
+  if (urgent) total *= 1.30
+
+  return {
+    acrylicType,
+    sizeBucket,
+    qtyTier,
+    pricePerPiece: row.price_per_piece,
+    qty,
+    urgent: !!urgent,
+    total: +total.toFixed(2),
+    pricePerUnit: +(total / qty).toFixed(2)
+  }
+}
+
+module.exports = { calcSheet, calcSouvenir, calcCutting, calcKeychain }
