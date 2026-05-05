@@ -63,4 +63,34 @@ function calcSouvenir({ productTypeId, qty, uvVarnish, reliefLayers = 0, urgent 
   }
 }
 
-module.exports = { calcSheet, calcSouvenir }
+function calcCutting({ materialId, lengthM, urgent, complexContour }, materials, settings) {
+  const material = materials.find(m => m.id === materialId)
+  if (!material) throw new Error('Material not found')
+
+  const len = Number(lengthM)
+  if (!Number.isFinite(len) || len <= 0) throw new Error('Invalid length')
+
+  let base = material.price_per_m * len
+  if (complexContour) base *= 1.20
+  if (urgent)         base *= 1.30
+
+  const minOrder = Number(settings.cutting_min_order) || 1500
+  const minOrderApplied = base < minOrder
+  const total = minOrderApplied ? minOrder : base
+
+  return {
+    service:         material.service,
+    materialName:    material.name,
+    thicknessMm:     material.thickness_mm,
+    pricePerM:       material.price_per_m,
+    lengthM:         +len,
+    complexContour:  !!complexContour,
+    urgent:          !!urgent,
+    base:            +base.toFixed(2),
+    minOrder:        minOrder,
+    minOrderApplied: minOrderApplied,
+    total:           +total.toFixed(2),
+  }
+}
+
+module.exports = { calcSheet, calcSouvenir, calcCutting }
