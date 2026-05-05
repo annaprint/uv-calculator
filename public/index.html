@@ -83,6 +83,7 @@
     <div class="tab active" onclick="switchTab('sheet', this)">📄 Листовая продукция</div>
     <div class="tab" onclick="switchTab('souvenir', this)">🎁 Сувенирная продукция</div>
     <div class="tab" onclick="switchTab('cutting', this)">✂️ Высечка</div>
+    <div class="tab" onclick="switchTab('keychain', this)">🔑 Брелки</div>
   </div>
 
   <div class="card">
@@ -163,16 +164,36 @@
 
     <!-- ── SOUVENIR TAB ── -->
     <div id="tab-souvenir" class="tab-content">
-      <div class="field">
-        <label>Поиск товара</label>
-        <input type="text" class="search-input" id="souv-search" placeholder="Ручка, ежедневник, power bank..." oninput="filterCatalog()">
+      <div id="souv-catalog-block">
+        <div class="field">
+          <label>Поиск товара</label>
+          <input type="text" class="search-input" id="souv-search" placeholder="Ручка, ежедневник, power bank..." oninput="filterCatalog()">
+        </div>
+
+        <div class="field">
+          <label>Товар из каталога</label>
+          <select id="souv-product" onchange="updateSouvInfo()">
+            <option value="">Выберите товар...</option>
+          </select>
+        </div>
+
+        <button type="button" class="kp-btn" id="souv-manual-toggle" style="margin-top:0;margin-bottom:14px;background:#475569;" onclick="toggleSouvenirManualMode()">Свободный расчёт →</button>
       </div>
 
-      <div class="field">
-        <label>Товар из каталога</label>
-        <select id="souv-product" onchange="updateSouvInfo()">
-          <option value="">Выберите товар...</option>
-        </select>
+      <div id="souv-manual-block" style="display:none;">
+        <div class="field">
+          <label>Тип печати</label>
+          <select id="souv-manual-type">
+            <option value="">Выберите тип...</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Цена продукта вручную, ₽/шт</label>
+          <input type="number" id="souv-manual-price" placeholder="0" min="0" step="0.01">
+        </div>
+
+        <button type="button" class="kp-btn" id="souv-catalog-toggle" style="margin-top:0;margin-bottom:14px;background:#475569;" onclick="toggleSouvenirManualMode()">← Из каталога</button>
       </div>
 
       <div class="field">
@@ -182,6 +203,7 @@
 
       <div class="info-pill" id="souv-info" style="display:none;">
         <span>Тарифная ступень: <strong id="souv-tier">—</strong></span>
+        <span id="souv-product-price-pill" style="display:none;">Цена продукта: <strong id="souv-product-price">—</strong></span>
       </div>
 
       <div class="field options">
@@ -278,6 +300,59 @@
         <div class="result-total"><span>Итого</span><span id="cut-total"></span></div>
         <div class="result-per-unit" id="cut-per-unit"></div>
         <button class="kp-btn" onclick="generateKP('cutting')">📋 Сформировать КП</button>
+      </div>
+    </div>
+
+    <!-- ── KEYCHAIN TAB ── -->
+    <div id="tab-keychain" class="tab-content">
+      <div class="field">
+        <label>Тип акрила</label>
+        <select id="kc-acrylic">
+          <option value="Прозрачный">Прозрачный</option>
+          <option value="Тонированный">Тонированный</option>
+          <option value="Непрозрачный/градиент 1 сторона">Непрозр./градиент 1 сторона</option>
+          <option value="Непрозрачный/градиент 2 стороны">Непрозр./градиент 2 стороны</option>
+          <option value="Люминесцентный">Люминесцентный</option>
+        </select>
+      </div>
+
+      <div class="row3">
+        <div class="field">
+          <label>Длина, см</label>
+          <input type="number" id="kc-length" placeholder="5" min="1" max="10" step="0.1">
+        </div>
+        <div class="field">
+          <label>Ширина, см</label>
+          <input type="number" id="kc-width" placeholder="3" min="1" max="10" step="0.1">
+        </div>
+        <div class="field">
+          <label>Тираж, шт.</label>
+          <input type="number" id="kc-qty" placeholder="100" min="1">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Срочность</label>
+        <div class="urgency">
+          <div class="urg-btn active" id="kc-standard" onclick="setUrgency('kc','standard')">
+            Стандарт <small>3–5 рабочих дней</small>
+          </div>
+          <div class="urg-btn urgent" id="kc-urgent" onclick="setUrgency('kc','urgent')">
+            Срочно <small>1–2 дня · +30%</small>
+          </div>
+        </div>
+      </div>
+
+      <button class="calc-btn" onclick="calcKeychainOrder()">Рассчитать →</button>
+
+      <div class="error-box" id="kc-error"></div>
+
+      <div class="result-box" id="kc-result">
+        <div class="result-title">Расчёт стоимости</div>
+        <div id="kc-breakdown"></div>
+        <div class="result-total"><span>Итого</span><span id="kc-total"></span></div>
+        <div class="result-per-unit" id="kc-per-unit"></div>
+        <button class="kp-btn" onclick="generateKP('keychain')">📋 Сформировать КП</button>
       </div>
     </div>
 
