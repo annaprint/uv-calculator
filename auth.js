@@ -21,8 +21,13 @@ async function verifyPassword(plaintext, hash) {
 }
 
 function buildSessionMiddleware({ secret, dbPath, cookieSecure, isTest }) {
-  if (process.env.NODE_ENV === 'production' && !secret) {
-    throw new Error('SESSION_SECRET must be set in production')
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('SESSION_SECRET must be set in production')
+    }
+    // Non-prod (test/dev): generate a per-process random secret so we never
+    // ship with a known fallback. Sessions don't survive restart — fine here.
+    secret = require('crypto').randomBytes(32).toString('hex')
   }
   const store = isTest
     ? undefined // express-session falls back to MemoryStore (для тестов)
@@ -32,7 +37,7 @@ function buildSessionMiddleware({ secret, dbPath, cookieSecure, isTest }) {
       })
   return session({
     store,
-    secret: secret || 'dev-secret-change-me',
+    secret,
     resave: false,
     saveUninitialized: false,
     cookie: {

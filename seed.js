@@ -35,17 +35,20 @@ function seedPrices(db) {
   insertTier.run(50,  380)
   insertTier.run(100, 280)
 
+  // v7: qty_up_to_29 — цена за штуку при тираже <30; min_order — нижняя граница
+  // суммы за печать. См. db.js миграцию v7. Старая семантика (qty_up_to_29 как
+  // фикс. сумма за весь тираж) перенесена в min_order.
   const insertSouv = db.prepare(
-    'INSERT INTO souvenir_prices (product_type,qty_up_to_29,qty_from_30,qty_from_100,qty_from_500,qty_from_1000) VALUES (?,?,?,?,?,?)'
+    'INSERT INTO souvenir_prices (product_type,qty_up_to_29,qty_from_30,qty_from_100,qty_from_500,qty_from_1000,min_order) VALUES (?,?,?,?,?,?,?)'
   )
-  insertSouv.run('Ручки (белый пластик)',     1500, 45,  29,  20,  14)
-  insertSouv.run('Ручки (цветной пластик)',   1800, 55,  36,  24,  17)
-  insertSouv.run('Ручки (металл/soft-touch)', 2200, 70,  46,  31,  22)
-  insertSouv.run('Ежедневник А5',            5500, 203, 159, 116,  87)
-  insertSouv.run('Ежедневник А4',            6500, 239, 203, 151, 113)
-  insertSouv.run('Power Bank',               2500, 80,  55,  38,  27)
-  insertSouv.run('Флешка',                   2000, 65,  42,  29,  20)
-  insertSouv.run('Термокружка',              3000, 95,  68,  47,  33)
+  insertSouv.run('Ручки (белый пластик)',     45,  45,  29,  20,  14, 1500)
+  insertSouv.run('Ручки (цветной пластик)',   55,  55,  36,  24,  17, 1800)
+  insertSouv.run('Ручки (металл/soft-touch)', 70,  70,  46,  31,  22, 2200)
+  insertSouv.run('Ежедневник А5',            203, 203, 159, 116,  87, 5500)
+  insertSouv.run('Ежедневник А4',            239, 239, 203, 151, 113, 6500)
+  insertSouv.run('Power Bank',                80,  80,  55,  38,  27, 2500)
+  insertSouv.run('Флешка',                    65,  65,  42,  29,  20, 2000)
+  insertSouv.run('Термокружка',               95,  95,  68,  47,  33, 3000)
 }
 
 async function main() {

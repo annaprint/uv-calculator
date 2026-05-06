@@ -1,6 +1,22 @@
 // calc.js
 
+const MAX_RELIEF_LAYERS = 10
+
+function assertPositiveFinite(v, name) {
+  if (!Number.isFinite(v) || v <= 0) throw new Error(`Invalid ${name}`)
+}
+function assertReliefLayers(v) {
+  if (!Number.isInteger(v) || v < 0 || v > MAX_RELIEF_LAYERS) {
+    throw new Error(`reliefLayers must be integer 0–${MAX_RELIEF_LAYERS}`)
+  }
+}
+
 function calcSheet({ widthMm, heightMm, qty, materialId, clientMaterial, uvVarnish, reliefLayers = 0, urgent }, materials, tiers) {
+  assertPositiveFinite(widthMm, 'widthMm')
+  assertPositiveFinite(heightMm, 'heightMm')
+  assertPositiveFinite(qty, 'qty')
+  assertReliefLayers(reliefLayers)
+
   const totalSqm = (widthMm / 1000) * (heightMm / 1000) * qty
 
   const applicableTiers = tiers.filter(t => t.min_sqm <= totalSqm)
@@ -8,9 +24,8 @@ function calcSheet({ widthMm, heightMm, qty, materialId, clientMaterial, uvVarni
   const tier = applicableTiers.sort((a, b) => b.min_sqm - a.min_sqm)[0]
 
   const basePrintCost = tier.price_per_sqm * totalSqm
-  let printCost = basePrintCost
-  if (uvVarnish) printCost += basePrintCost * 0.30
-  for (let i = 0; i < reliefLayers; i++) printCost += basePrintCost * 0.30
+  const printMultiplier = 1 + (uvVarnish ? 0.30 : 0) + reliefLayers * 0.30
+  const printCost = basePrintCost * printMultiplier
 
   let materialCost = 0
   if (!clientMaterial) {
@@ -38,6 +53,9 @@ function calcSouvenir(
   prices,
   catalog = []
 ) {
+  assertPositiveFinite(qty, 'qty')
+  assertReliefLayers(reliefLayers)
+
   let priceRow, productPrice, catalogItemName = null
 
   if (catalogItemId != null) {
@@ -45,11 +63,11 @@ function calcSouvenir(
     if (!item) throw new Error('Catalog item not found')
     if (!item.souvenir_price_id) throw new Error('Catalog item not linked to print type')
     priceRow = prices.find(p => p.id === item.souvenir_price_id)
-    productPrice = item.customer_price ?? 0
+    productPrice = Math.max(0, Number(item.customer_price) || 0)
     catalogItemName = item.name
   } else if (productTypeId != null) {
     priceRow = prices.find(p => p.id === productTypeId)
-    productPrice = Number(manualProductPrice) || 0
+    productPrice = Math.max(0, Number(manualProductPrice) || 0)
   } else {
     throw new Error('Either catalogItemId or productTypeId required')
   }
@@ -67,9 +85,8 @@ function calcSouvenir(
   const minOrderApplied = printBase < minOrder
   if (minOrderApplied) printBase = minOrder
 
-  let printCost = printBase
-  if (uvVarnish) printCost += printBase * 0.30
-  for (let i = 0; i < reliefLayers; i++) printCost += printBase * 0.30
+  const printMultiplier = 1 + (uvVarnish ? 0.30 : 0) + reliefLayers * 0.30
+  const printCost = printBase * printMultiplier
 
   const productCost = productPrice * qty
 
@@ -126,6 +143,8 @@ const KEYCHAIN_SIZE_BUCKETS = [3, 4, 6, 8, 10]
 const KEYCHAIN_QTY_TIERS = [1, 10, 100, 500]
 
 function calcKeychain({ acrylicType, longestSideCm, qty, urgent = false }, prices) {
+  assertPositiveFinite(longestSideCm, 'longestSideCm')
+  assertPositiveFinite(qty, 'qty')
   const sizeBucket = KEYCHAIN_SIZE_BUCKETS.find(s => longestSideCm <= s)
   if (!sizeBucket) throw new Error('Size > 10 cm not supported')
 

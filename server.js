@@ -12,6 +12,7 @@ const { generateQuotePdf } = require('./pdf')
 const { createBackup } = require('./backup')
 
 const app = express()
+app.disable('x-powered-by')
 const db = createDb()
 // Catalog .xlsx import — capped well below nginx client_max_body_size (5 MB).
 // xlsx parse can amplify memory ~50× so a hard upper bound on input size is
@@ -27,7 +28,9 @@ if (process.env.NODE_ENV === 'production') {
   app.set('trust proxy', 1)
 }
 
-app.use(express.json())
+// JSON body cap: KP texts and quote params shouldn't exceed a few KB; 64 KB is
+// generous and protects against accidental/malicious bloat.
+app.use(express.json({ limit: '64kb' }))
 app.use(buildSessionMiddleware({
   secret: process.env.SESSION_SECRET,
   cookieSecure: process.env.COOKIE_SECURE === 'true',
@@ -42,6 +45,22 @@ const loginLimiter = rateLimit({
   legacyHeaders: false,
   skip: () => process.env.DISABLE_RATE_LIMIT === 'true'
 })
+
+// Password change/reset: stricter window to slow down brute-forcing the old
+// password (change-password) or scripted resets via a hijacked admin session.
+const passwordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => process.env.DISABLE_RATE_LIMIT === 'true'
+})
+
+// Cap request-side search strings so a logged-in user can't force the server
+// to lower-case / scan a 100 KB pattern across every row.
+function capQ(v, max = 200) {
+  return String(v ?? '').slice(0, max)
+}
 
 // ── HTML routes (gated) ───────────────────────────────────────────────────
 app.get('/', (req, res) => {
@@ -91,7 +110,7 @@ app.get('/api/users/me', requireAuth, (req, res) => {
   res.json(req.user)
 })
 
-app.post('/api/users/me/change-password', requireAuth, async (req, res) => {
+app.post('/api/users/me/change-password', requireAuth, passwordLimiter, async (req, res) => {
   const { old_password, new_password } = req.body || {}
   if (!old_password || !new_password) return res.status(400).json({ error: 'old_password and new_password required' })
   const pwdErr = validatePassword(new_password)
@@ -149,7 +168,7 @@ app.put('/api/users/:id', requireAdmin, (req, res) => {
   res.json(u)
 })
 
-app.post('/api/users/:id/reset-password', requireAdmin, async (req, res) => {
+app.post('/api/users/:id/reset-password', requireAdmin, passwordLimiter, async (req, res) => {
   const { new_password } = req.body || {}
   if (!new_password) return res.status(400).json({ error: 'new_password required' })
   const pwdErr = validatePassword(new_password)
@@ -360,7 +379,8 @@ app.put('/api/keychain-prices/:id', requireAdmin, (req, res) => {
 
 // ── Catalog ───────────────────────────────────────────────────────────────
 app.get('/api/catalog', requireAuth, (req, res) => {
-  const q = req.query.q ? `%${req.query.q}%` : '%'
+  const raw = capQ(req.query.q)
+  const q = raw ? `%${raw}%` : '%'
   res.json(db.prepare(
     'SELECT c.*, s.product_type FROM catalog_items c LEFT JOIN souvenir_prices s ON c.souvenir_price_id=s.id WHERE c.name LIKE ? OR c.article LIKE ? ORDER BY c.name'
   ).all(q, q))
@@ -428,8 +448,17 @@ app.post('/api/catalog/import', requireAdmin, upload.single('file'), (req, res) 
 })
 
 app.put('/api/catalog/:id/price-type', requireAdmin, (req, res) => {
-  const { souvenir_price_id } = req.body
-  db.prepare('UPDATE catalog_items SET souvenir_price_id=? WHERE id=?').run(souvenir_price_id || null, req.params.id)
+  const raw = req.body && req.body.souvenir_price_id
+  const sid = raw == null || raw === '' ? null : Number(raw)
+  if (sid != null && (!Number.isInteger(sid) || sid <= 0)) {
+    return res.status(400).json({ error: 'souvenir_price_id must be a positive integer or null' })
+  }
+  if (sid != null) {
+    const exists = db.prepare('SELECT 1 FROM souvenir_prices WHERE id=?').get(sid)
+    if (!exists) return res.status(400).json({ error: 'souvenir_price_id not found' })
+  }
+  const info = db.prepare('UPDATE catalog_items SET souvenir_price_id=? WHERE id=?').run(sid, req.params.id)
+  if (info.changes === 0) return res.status(404).json({ error: 'Not found' })
   res.json(db.prepare('SELECT * FROM catalog_items WHERE id=?').get(req.params.id))
 })
 
@@ -497,8 +526,17 @@ app.post('/api/backups', requireAdmin, async (req, res) => {
 app.get('/api/backups/:filename', requireAdmin, (req, res) => {
   const safe = path.basename(req.params.filename)
   if (!/^uv-.*\.db$/.test(safe)) return res.status(404).json({ error: 'Not found' })
-  const full = path.join(backupDir(), safe)
+  const dir = backupDir()
+  const full = path.join(dir, safe)
   if (!fs.existsSync(full)) return res.status(404).json({ error: 'Not found' })
+  // Defence against a symlink planted in BACKUP_DIR pointing outside the dir.
+  try {
+    const realFull = fs.realpathSync(full)
+    const realDir = fs.realpathSync(dir)
+    if (path.dirname(realFull) !== realDir) return res.status(404).json({ error: 'Not found' })
+  } catch {
+    return res.status(404).json({ error: 'Not found' })
+  }
   res.download(full)
 })
 
@@ -536,8 +574,26 @@ app.put('/api/company-settings', requireAdmin, (req, res) => {
   res.json(readSettings())
 })
 
+// Verify the uploaded file is really an image — Content-Type from the client
+// is forgeable. Read the first 12 bytes and check magic numbers; if it isn't
+// PNG/JPEG/WebP, delete the file and reject.
+function isImageMagic(buf) {
+  if (!buf || buf.length < 12) return false
+  const isPng  = buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47
+  const isJpeg = buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF
+  const isWebp = buf.slice(0, 4).toString('ascii') === 'RIFF' &&
+                 buf.slice(8, 12).toString('ascii') === 'WEBP'
+  return isPng || isJpeg || isWebp
+}
+
 app.post('/api/company-settings/logo', requireAdmin, logoUpload.single('logo'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file' })
+  let head
+  try { head = fs.readFileSync(req.file.path).slice(0, 12) } catch { head = null }
+  if (!isImageMagic(head)) {
+    try { fs.unlinkSync(req.file.path) } catch {}
+    return res.status(400).json({ error: 'File is not a valid PNG/JPEG/WebP image' })
+  }
   db.prepare('INSERT INTO company_settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value')
     .run('logo_path', req.file.path)
   res.json({ ok: true, path: req.file.path })
@@ -545,16 +601,18 @@ app.post('/api/company-settings/logo', requireAdmin, logoUpload.single('logo'), 
 
 // ── Clients ───────────────────────────────────────────────────────────────
 app.get('/api/clients', requireAuth, (req, res) => {
-  const q = req.query.q ? `%${req.query.q}%` : '%'
+  const raw = capQ(req.query.q)
+  const q = raw ? `%${raw}%` : '%'
   res.json(db.prepare('SELECT * FROM clients WHERE lower_ru(name) LIKE lower_ru(?) ORDER BY name').all(q))
 })
 
 app.get('/api/clients/:id', requireAuth, (req, res) => {
   const c = db.prepare('SELECT * FROM clients WHERE id=?').get(req.params.id)
   if (!c) return res.status(404).json({ error: 'Not found' })
-  const quotes = db.prepare(
-    'SELECT id, created_at, type FROM quotes WHERE client_id=? ORDER BY created_at DESC'
-  ).all(req.params.id)
+  // Managers see only their own quotes for the client; admins see everything.
+  const quotes = req.user.is_admin
+    ? db.prepare('SELECT id, created_at, type FROM quotes WHERE client_id=? ORDER BY created_at DESC').all(req.params.id)
+    : db.prepare('SELECT id, created_at, type FROM quotes WHERE client_id=? AND user_id=? ORDER BY created_at DESC').all(req.params.id, req.user.id)
   res.json({ ...c, quotes })
 })
 
@@ -593,7 +651,7 @@ app.get('/api/quotes', requireAuth, (req, res) => {
   const params = {}
   // Managers see only their own quotes; admins see everything.
   if (!req.user.is_admin) { where.push('q.user_id = @me'); params.me = req.user.id }
-  if (req.query.q) { where.push('(q.kp_text LIKE @q OR q.params LIKE @q OR q.comment LIKE @q)'); params.q = `%${req.query.q}%` }
+  if (req.query.q) { where.push('(q.kp_text LIKE @q OR q.params LIKE @q OR q.comment LIKE @q)'); params.q = `%${capQ(req.query.q)}%` }
   if (req.query.type) { where.push('q.type = @type'); params.type = req.query.type }
   if (req.query.date_from) { where.push("date(q.created_at) >= date(@df)"); params.df = req.query.date_from }
   if (req.query.date_to)   { where.push("date(q.created_at) <= date(@dt)"); params.dt = req.query.date_to }
@@ -637,8 +695,11 @@ app.get('/api/quotes/:id/pdf', requireAuth, async (req, res) => {
   if (!req.user.is_admin && q.user_id !== req.user.id) {
     return res.status(403).json({ error: 'Forbidden' })
   }
-  if (q.pdf_path && fs.existsSync(q.pdf_path)) {
-    return res.type('pdf').sendFile(path.resolve(q.pdf_path))
+  // Path is derived from the quote id, not read from the row, so a tampered
+  // pdf_path value can't redirect us to /etc/passwd or another file.
+  const filePath = path.join(PDFS_DIR, `quote-${q.id}.pdf`)
+  if (q.pdf_path && fs.existsSync(filePath)) {
+    return res.type('pdf').sendFile(filePath)
   }
   try {
     const client = q.client_id ? db.prepare('SELECT * FROM clients WHERE id=?').get(q.client_id) : null
@@ -646,12 +707,12 @@ app.get('/api/quotes/:id/pdf', requireAuth, async (req, res) => {
     const settings = readSettings()
     const buf = await generateQuotePdf(q, client, settings, user || {})
     fs.mkdirSync(PDFS_DIR, { recursive: true })
-    const filePath = path.join(PDFS_DIR, `quote-${q.id}.pdf`)
     fs.writeFileSync(filePath, buf)
     db.prepare('UPDATE quotes SET pdf_path=? WHERE id=?').run(filePath, q.id)
     res.type('pdf').send(buf)
   } catch (e) {
-    res.status(500).json({ error: e.message })
+    console.error('PDF generation failed for quote', q.id, e)
+    res.status(500).json({ error: 'PDF generation failed' })
   }
 })
 
