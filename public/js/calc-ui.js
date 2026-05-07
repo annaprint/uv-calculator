@@ -191,8 +191,8 @@ function showSheetResult(r, p) {
   const matName = p.clientMaterial ? 'Материал заказчика' : (sheetMaterials.find(m => m.id === p.materialId)?.name || '')
   let rows = `<div class="result-row"><span>Надпечатка (${esc(String(r.totalSqm))} м², ступень от ${esc(String(r.tierApplied))} м²)</span><span>${fmt(r.basePrintCost)}</span></div>`
   if (!p.clientMaterial) rows += `<div class="result-row"><span>Материал: ${esc(matName)}</span><span>${fmt(r.materialCost)}</span></div>`
-  if (p.uvVarnish) rows += `<div class="result-row"><span>УФ-лак (+30%)</span><span>${fmt(r.basePrintCost * 0.30)}</span></div>`
-  if (p.reliefLayers > 0) rows += `<div class="result-row"><span>Рельефный белый (${p.reliefLayers} сл. × +30%)</span><span>${fmt(r.basePrintCost * 0.30 * p.reliefLayers)}</span></div>`
+  if (p.uvVarnish) rows += `<div class="result-row"><span>УФ-лак (+50%)</span><span>${fmt(r.basePrintCost * 0.50)}</span></div>`
+  if (p.reliefLayers > 0) rows += `<div class="result-row"><span>Рельефный белый (${p.reliefLayers} сл. × +50%)</span><span>${fmt(r.basePrintCost * 0.50 * p.reliefLayers)}</span></div>`
   if (p.urgent) rows += `<div class="result-row"><span>Срочность (+30%)</span><span>${fmt(r.total - r.printCost - r.materialCost)}</span></div>`
 
   document.getElementById('sheet-breakdown').innerHTML = rows
@@ -388,7 +388,7 @@ function buildKPText(type, data) {
 Размер: ${p.widthMm}×${p.heightMm} мм
 Тираж: ${p.qty} шт.
 Площадь: ${r.totalSqm} м²
-${p.uvVarnish ? 'Опция: УФ-лак (+30%)\n' : ''}${p.reliefLayers > 0 ? `Опция: рельефный белый (${p.reliefLayers} сл.)\n` : ''}${p.urgent ? 'Срочность: 1–2 дня (+30%)\n' : ''}
+${p.uvVarnish ? 'Опция: УФ-лак (+50%)\n' : ''}${p.reliefLayers > 0 ? `Опция: рельефный белый (${p.reliefLayers} сл. × +50%)\n` : ''}${p.urgent ? 'Срочность: 1–2 дня (+30%)\n' : ''}
 Стоимость надпечатки: ${fmt(r.printCost)}${!p.clientMaterial ? `\nСтоимость материала: ${fmt(r.materialCost)}` : ''}
 Итого: ${fmt(r.total)} (${fmt(r.pricePerUnit)}/шт.)`
   } else if (type === 'cutting') {

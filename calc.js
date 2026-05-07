@@ -24,7 +24,7 @@ function calcSheet({ widthMm, heightMm, qty, materialId, clientMaterial, uvVarni
   const tier = applicableTiers.sort((a, b) => b.min_sqm - a.min_sqm)[0]
 
   const basePrintCost = tier.price_per_sqm * totalSqm
-  const printMultiplier = 1 + (uvVarnish ? 0.30 : 0) + reliefLayers * 0.30
+  const printMultiplier = 1 + (uvVarnish ? 0.50 : 0) + reliefLayers * 0.50
   const printCost = basePrintCost * printMultiplier
 
   let materialCost = 0

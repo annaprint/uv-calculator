@@ -58,22 +58,22 @@ describe('calcSheet', () => {
     expect(r.total).toBeCloseTo(13500)
   })
 
-  test('uv varnish adds 30% to base print cost', () => {
+  test('uv varnish adds 50% to base print cost', () => {
     const r = calcSheet(
       { widthMm: 600, heightMm: 900, qty: 50, materialId: 1, clientMaterial: false, uvVarnish: true, reliefLayers: 0, urgent: false },
       MATERIALS, TIERS
     )
-    // base print 13500, varnish +30% = 4050, total print = 17550
-    expect(r.printCost).toBeCloseTo(17550)
+    // base print 13500, varnish +50% = 6750, total print = 20250
+    expect(r.printCost).toBeCloseTo(20250)
   })
 
-  test('2 relief layers add 60% to base print cost', () => {
+  test('2 relief layers add 100% to base print cost', () => {
     const r = calcSheet(
       { widthMm: 600, heightMm: 900, qty: 50, materialId: 1, clientMaterial: false, uvVarnish: false, reliefLayers: 2, urgent: false },
       MATERIALS, TIERS
     )
-    // base print 13500, 2 layers × 30% = 8100, total print = 21600
-    expect(r.printCost).toBeCloseTo(21600)
+    // base print 13500, 2 layers × 50% = 13500, total print = 27000
+    expect(r.printCost).toBeCloseTo(27000)
   })
 
   test('urgent adds 30% to full subtotal', () => {
