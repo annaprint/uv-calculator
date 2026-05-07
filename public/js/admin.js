@@ -571,6 +571,7 @@ function renderUsers() {
       <td>${u.is_active ? '✓' : '—'}</td>
       <td>
         <button onclick="renameUser(${u.id})">Имя</button>
+        <button onclick="changeUserEmail(${u.id})">Email</button>
         <button onclick="resetUserPassword(${u.id})">Пароль</button>
         <button onclick="toggleUserAdmin(${u.id})">${u.is_admin ? 'Менеджер' : 'Админ'}</button>
         <button class="btn-danger" onclick="toggleUserActive(${u.id})">${u.is_active ? 'Выкл' : 'Вкл'}</button>
@@ -601,6 +602,20 @@ async function renameUser(id) {
   try {
     await api('PUT', `/api/users/${id}`, { full_name })
     showToast('Сохранено ✓')
+    loadUsers()
+  } catch (e) { showToast('Ошибка: ' + e.message) }
+}
+
+async function changeUserEmail(id) {
+  const u = users.find(x => x.id === id)
+  if (!u) return
+  const email = prompt('Новый email:', u.email)
+  if (email === null) return
+  const trimmed = email.trim().toLowerCase()
+  if (!trimmed || trimmed === u.email) return
+  try {
+    await api('PUT', `/api/users/${id}`, { email: trimmed })
+    showToast('Email обновлён ✓')
     loadUsers()
   } catch (e) { showToast('Ошибка: ' + e.message) }
 }

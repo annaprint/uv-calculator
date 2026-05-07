@@ -157,12 +157,21 @@ app.post('/api/users', requireAdmin, async (req, res) => {
 })
 
 app.put('/api/users/:id', requireAdmin, (req, res) => {
-  const { full_name, is_admin } = req.body || {}
+  const { full_name, is_admin, email } = req.body || {}
   if ((is_admin === 0 || is_admin === false) && isLastActiveAdmin(Number(req.params.id))) {
     return res.status(400).json({ error: 'Cannot demote the last active admin' })
   }
-  db.prepare('UPDATE users SET full_name=COALESCE(?,full_name), is_admin=COALESCE(?,is_admin) WHERE id=?')
-    .run(full_name ?? null, is_admin == null ? null : (is_admin ? 1 : 0), req.params.id)
+  let normalizedEmail = null
+  if (email !== undefined) {
+    if (typeof email !== 'string' || normalizeEmail(email) === '') {
+      return res.status(400).json({ error: 'email must be a non-empty string' })
+    }
+    normalizedEmail = normalizeEmail(email)
+    const dup = db.prepare('SELECT id FROM users WHERE email=? AND id<>?').get(normalizedEmail, req.params.id)
+    if (dup) return res.status(409).json({ error: 'Email already exists' })
+  }
+  db.prepare('UPDATE users SET full_name=COALESCE(?,full_name), is_admin=COALESCE(?,is_admin), email=COALESCE(?,email) WHERE id=?')
+    .run(full_name ?? null, is_admin == null ? null : (is_admin ? 1 : 0), normalizedEmail, req.params.id)
   const u = db.prepare('SELECT id,email,full_name,is_admin,is_active FROM users WHERE id=?').get(req.params.id)
   if (!u) return res.status(404).json({ error: 'Not found' })
   res.json(u)

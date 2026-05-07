@@ -147,4 +147,34 @@ describe('admin user management', () => {
     expect(res.status).toBe(201)
     expect(res.body.email).toBe('new@b.c')
   })
+
+  test('PUT /api/users/:id updates email (normalized)', async () => {
+    const c = await agent.post('/api/users').send({ email: 'old@b.c', password: 'pass1234', full_name: 'X' })
+    const r = await agent.put(`/api/users/${c.body.id}`).send({ email: '  NEW@B.c  ' })
+    expect(r.status).toBe(200)
+    expect(r.body.email).toBe('new@b.c')
+    // re-login with the new email
+    const a2 = request.agent(app)
+    expect((await loginAs(a2, 'new@b.c', 'pass1234')).status).toBe(200)
+  })
+
+  test('PUT /api/users/:id rejects email that already belongs to another user', async () => {
+    await agent.post('/api/users').send({ email: 'taken@b.c', password: 'pass1234', full_name: 'T' })
+    const c = await agent.post('/api/users').send({ email: 'mine@b.c', password: 'pass1234', full_name: 'M' })
+    const r = await agent.put(`/api/users/${c.body.id}`).send({ email: 'taken@b.c' })
+    expect(r.status).toBe(409)
+  })
+
+  test('PUT /api/users/:id allows setting same email back to itself', async () => {
+    const c = await agent.post('/api/users').send({ email: 'same@b.c', password: 'pass1234', full_name: 'S' })
+    const r = await agent.put(`/api/users/${c.body.id}`).send({ email: 'same@b.c' })
+    expect(r.status).toBe(200)
+    expect(r.body.email).toBe('same@b.c')
+  })
+
+  test('PUT /api/users/:id rejects empty email', async () => {
+    const c = await agent.post('/api/users').send({ email: 'e@b.c', password: 'pass1234', full_name: 'E' })
+    const r = await agent.put(`/api/users/${c.body.id}`).send({ email: '   ' })
+    expect(r.status).toBe(400)
+  })
 })
