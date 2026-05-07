@@ -374,6 +374,15 @@
   </form>
 </dialog>
 
+<dialog id="save-result-modal" style="border:none;border-radius:10px;padding:24px;max-width:420px;width:calc(100% - 32px);box-shadow:0 20px 50px rgba(0,0,0,.18);">
+  <h3 style="font-size:16px;margin-bottom:8px;">✅ КП сохранено</h3>
+  <p id="save-result-info" style="font-size:13px;color:#64748b;margin-bottom:18px;">—</p>
+  <div style="display:flex;gap:10px;">
+    <button type="button" id="save-result-pdf" style="flex:1;padding:10px;border-radius:7px;border:none;font-size:14px;font-weight:600;cursor:pointer;background:#3b82f6;color:white;">📄 Открыть PDF</button>
+    <button type="button" id="save-result-close" style="flex:1;padding:10px;border-radius:7px;border:none;font-size:14px;font-weight:600;cursor:pointer;background:#f1f5f9;color:#64748b;">Закрыть</button>
+  </div>
+</dialog>
+
 <script src="/js/header.js"></script>
 <script src="/js/calc-ui.js"></script>
 </body>

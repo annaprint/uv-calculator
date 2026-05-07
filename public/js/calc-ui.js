@@ -483,12 +483,26 @@ function openSaveQuoteModal(payload) {
       }
       const comment = commentEl.value.trim() || null
       const saved = await api('POST', '/api/quotes', { ...payload, client_id, comment })
-      alert('КП сохранено (#' + saved.id + ')\n\n' + payload.kp_text)
+      showSaveResult(saved.id)
     } catch (e) {
       alert('Ошибка сохранения: ' + e.message)
     }
   }
   dlg.addEventListener('close', onClose)
+  dlg.showModal()
+}
+
+function showSaveResult(quoteId) {
+  const dlg = document.getElementById('save-result-modal')
+  const info = document.getElementById('save-result-info')
+  const pdfBtn = document.getElementById('save-result-pdf')
+  const closeBtn = document.getElementById('save-result-close')
+  info.textContent = `КП #${quoteId} записано в историю. Откройте PDF для печати или отправки клиенту.`
+  pdfBtn.onclick = () => {
+    window.open(`/api/quotes/${quoteId}/pdf`, '_blank')
+    dlg.close()
+  }
+  closeBtn.onclick = () => dlg.close()
   dlg.showModal()
 }
 
